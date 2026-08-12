@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#111827" />
+  <title>Portfolio Tracker</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div>
+        <div class="eyebrow">Portfolio Tracker</div>
+        <h1 id="accountTitle">All Accounts</h1>
+      </div>
+      <select id="accountSelect" aria-label="Account"></select>
+    </header>
+
+    <main>
+      <section id="dashboardView" class="view active">
+        <div class="hero-card">
+          <div class="hero-label">Net Assets</div>
+          <div class="hero-value" id="netAssets">HK$0</div>
+          <div class="hero-subrow">
+            <span id="totalPL">P/L HK$0</span>
+            <span id="grossExposure">Exposure 0.00×</span>
+          </div>
+        </div>
+
+        <div class="metric-grid">
+          <div class="metric-card"><span>Invested</span><strong id="investedValue">HK$0</strong></div>
+          <div class="metric-card"><span>Cash / Margin</span><strong id="cashValue">HK$0</strong></div>
+          <div class="metric-card"><span>Unrealized P/L</span><strong id="unrealizedPL">HK$0</strong></div>
+          <div class="metric-card"><span>Realized P/L</span><strong id="realizedPL">HK$0</strong></div>
+        </div>
+
+        <section class="panel">
+          <div class="section-head"><h2>Holdings</h2><button class="ghost-btn" onclick="showView('holdingsView')">View all</button></div>
+          <div id="holdingsList" class="holdings-list"></div>
+        </section>
+
+        <section class="panel">
+          <div class="section-head"><h2>Allocation</h2><span class="muted">Net asset weight</span></div>
+          <div id="allocationList" class="allocation-list"></div>
+        </section>
+      </section>
+
+      <section id="holdingsView" class="view">
+        <div class="section-head"><h2>All Holdings</h2><button class="primary-btn" onclick="openAssetModal()">+ Asset</button></div>
+        <div id="allHoldingsList" class="holdings-list"></div>
+      </section>
+
+      <section id="transactionsView" class="view">
+        <div class="section-head"><h2>Transactions</h2><button class="primary-btn" onclick="openTransactionModal()">+ Transaction</button></div>
+        <div id="transactionList" class="transaction-list"></div>
+      </section>
+
+      <section id="fxView" class="view">
+        <div class="section-head"><h2>Currency Exchange</h2><button class="primary-btn" onclick="openFxModal()">+ FX</button></div>
+        <div class="panel">
+          <div class="section-head"><h3>Cash balances</h3><span class="muted">Negative = margin</span></div>
+          <div id="cashBalances"></div>
+        </div>
+        <div id="fxList" class="transaction-list"></div>
+      </section>
+    </main>
+
+    <nav class="bottom-nav">
+      <button class="nav-btn active" data-view="dashboardView">Overview</button>
+      <button class="nav-btn" data-view="holdingsView">Holdings</button>
+      <button class="nav-btn" data-view="transactionsView">Transactions</button>
+      <button class="nav-btn" data-view="fxView">FX</button>
+    </nav>
+  </div>
+
+  <div id="assetModal" class="modal-overlay hidden"><div class="modal-wrap">
+    <form id="assetForm" class="modal-card">
+      <div class="section-head"><h3>Add Asset</h3><button type="button" class="icon-btn modal-close">×</button></div>
+      <label>Account<select id="assetAccount" required></select></label>
+      <label>Type<select id="assetType"><option value="stock">Stock</option><option value="option">Option</option></select></label>
+      <label>Symbol<input id="assetSymbol" required placeholder="ACN / 000660" /></label>
+      <label>Name<input id="assetName" placeholder="Accenture" /></label>
+      <label>Currency<select id="assetCurrency"><option>USD</option><option>HKD</option><option>KRW</option></select></label>
+      <label>Current Price<input id="assetPrice" type="number" step="0.0001" required /></label>
+      <div id="optionFields" class="option-fields hidden">
+        <label>Option Type<select id="optionType"><option>Call</option><option>Put</option></select></label>
+        <label>Strike<input id="optionStrike" type="number" step="0.01" /></label>
+        <label>Expiry<input id="optionExpiry" type="date" /></label>
+        <label>Multiplier<input id="optionMultiplier" type="number" value="100" /></label>
+      </div>
+      <button type="button" id="saveAssetBtn" class="primary-btn full">Save Asset</button>
+    </form>
+  </div></div>
+
+  <div id="transactionModal" class="modal-overlay hidden"><div class="modal-wrap">
+    <form id="transactionForm" class="modal-card">
+      <div class="section-head"><h3>Add Transaction</h3><button type="button" class="icon-btn modal-close">×</button></div>
+      <label>Account<select id="txAccount" required></select></label>
+      <label>Type<select id="txType"><option>Buy</option><option>Sell</option><option>Deposit</option><option>Withdrawal</option><option>Dividend</option><option>Fee</option><option>Tax</option><option>Interest</option><option>Margin Interest</option></select></label>
+      <label id="txAssetLabel">Asset<select id="txAsset"></select></label>
+      <label>Currency<select id="txCurrency"><option>USD</option><option>HKD</option><option>KRW</option></select></label>
+      <label id="qtyLabel">Quantity<input id="txQty" type="number" step="0.0001" value="1" /></label>
+      <label id="priceLabel">Price<input id="txPrice" type="number" step="0.0001" value="0" /></label>
+      <label>Fee<input id="txFee" type="number" step="0.01" value="0" /></label>
+      <label>Date<input id="txDate" type="date" /></label>
+      <button type="button" id="saveTransactionBtn" class="primary-btn full">Save Transaction</button>
+    </form>
+  </div></div>
+
+  <div id="fxModal" class="modal-overlay hidden"><div class="modal-wrap">
+    <form id="fxForm" class="modal-card">
+      <div class="section-head"><h3>Currency Exchange</h3><button type="button" class="icon-btn modal-close">×</button></div>
+      <label>Account<select id="fxAccount" required></select></label>
+      <label>From Currency<select id="fxFrom"><option>HKD</option><option>USD</option><option>KRW</option></select></label>
+      <label>From Amount<input id="fxFromAmount" type="number" step="0.01" required /></label>
+      <label>To Currency<select id="fxTo"><option>USD</option><option>HKD</option><option>KRW</option></select></label>
+      <label>Received Amount<input id="fxToAmount" type="number" step="0.01" required /></label>
+      <label>Fee<input id="fxFee" type="number" step="0.01" value="0" /></label>
+      <label>Date<input id="fxDate" type="date" /></label>
+      <button type="button" id="saveFxBtn" class="primary-btn full">Save FX</button>
+    </form>
+  </div></div>
+
+  <div id="toast" class="toast hidden"></div>
+  <script src="app.js?v=1.3"></script>
+</body>
+</html>
