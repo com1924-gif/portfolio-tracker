@@ -1,4 +1,54 @@
 let editingTransactionId=null;
+const COMPANY_SEARCH_API='https://portfolio-tracker-quotes.vercel.app/';
+let companyLookupTimer=null;
+let companyLookupSeq=0;
+let lastAutoCompanyName='';
+
+function companyLookupTicker(){
+  const raw=normalizeTicker($('txTicker').value);
+  if(!raw)return '';
+  if(raw.includes('.'))return raw;
+  const currency=$('txCurrency').value;
+  if(currency==='HKD'&&/^\d{1,5}$/.test(raw))return raw.padStart(4,'0')+'.HK';
+  if(currency==='KRW'&&/^\d{6}$/.test(raw))return raw+'.KS';
+  return raw;
+}
+
+async function lookupCompanyName({force=false}={}){
+  const type=$('txType').value;
+  if(!['Buy','Sell'].includes(type))return;
+  const query=companyLookupTicker();
+  if(!query)return;
+  const nameInput=$('txName');
+  const current=nameInput.value.trim();
+  if(!force&&current&&current!==lastAutoCompanyName)return;
+  const seq=++companyLookupSeq;
+  try{
+    const res=await fetch(`${COMPANY_SEARCH_API}?mode=search&q=${encodeURIComponent(query)}`);
+    if(!res.ok)throw new Error(`Search service returned ${res.status}`);
+    const data=await res.json();
+    if(seq!==companyLookupSeq)return;
+    const rows=Array.isArray(data.results)?data.results:[];
+    const raw=normalizeTicker($('txTicker').value);
+    const exact=rows.find(r=>normalizeTicker(r.symbol)===normalizeTicker(query))
+      ||rows.find(r=>normalizeTicker(r.symbol)===raw)
+      ||rows.find(r=>r.name||r.longName||r.shortName);
+    const name=exact&&(exact.longName||exact.name||exact.shortName);
+    if(!name)return;
+    const now=nameInput.value.trim();
+    if(force||!now||now===lastAutoCompanyName){
+      nameInput.value=name;
+      lastAutoCompanyName=name;
+    }
+  }catch(err){
+    console.warn('Company lookup failed',err);
+  }
+}
+
+function scheduleCompanyLookup(){
+  clearTimeout(companyLookupTimer);
+  companyLookupTimer=setTimeout(()=>lookupCompanyName(),500);
+}
 
 function updateTxForm(){
   const type=$('txType').value;const trading=['Buy','Sell'].includes(type);const dividend=type==='Dividend';
@@ -10,7 +60,11 @@ function updateTxForm(){
   $('optionTxFields').classList.toggle('hidden',!(trading&&$('txAssetType').value==='option'));
   $('priceLabel').firstChild.textContent=trading?'Price':'Amount';
 }
-$('txType').addEventListener('change',updateTxForm);$('txAssetType').addEventListener('change',updateTxForm);
+$('txType').addEventListener('change',updateTxForm);
+$('txAssetType').addEventListener('change',()=>{updateTxForm();scheduleCompanyLookup();});
+$('txTicker').addEventListener('input',scheduleCompanyLookup);
+$('txTicker').addEventListener('blur',()=>lookupCompanyName());
+$('txCurrency').addEventListener('change',scheduleCompanyLookup);
 
 function setTransactionModalMode(editing){
   if($('txModalTitle'))$('txModalTitle').textContent=editing?'Edit Transaction':'Add Transaction';
@@ -18,6 +72,7 @@ function setTransactionModalMode(editing){
 }
 
 function resetTransactionForm(){
+  clearTimeout(companyLookupTimer);companyLookupSeq++;lastAutoCompanyName='';
   populatePortfolioSelects();if(currentPortfolioId)$('txPortfolio').value=currentPortfolioId;
   $('txType').value='Buy';$('txAssetType').value='stock';$('txTicker').value='';$('txName').value='';
   $('txQty').value='1';$('txPrice').value='0';$('txCurrentPrice').value='';$('txFee').value='0';
@@ -34,6 +89,7 @@ window.openTransactionModal=()=>{
 window.openEditTransaction=id=>{
   const t=state.transactions.find(x=>x.id===id);if(!t)return toast('Transaction not found.',true);
   const a=state.assets.find(x=>x.id===t.assetId);
+  clearTimeout(companyLookupTimer);companyLookupSeq++;lastAutoCompanyName='';
   editingTransactionId=id;
   populatePortfolioSelects();
   $('txPortfolio').value=t.accountId;
