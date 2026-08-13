@@ -154,6 +154,10 @@
         <label>Multiplier<input id="txMultiplier" type="number" value="100" /></label>
       </div>
       <label>Currency<select id="txCurrency"><option>USD</option><option>HKD</option><option>KRW</option></select></label>
+      <div id="hkLotFields" class="option-fields hidden">
+        <label>Quantity Unit<select id="txQtyMode"><option value="lots">Lots</option><option value="shares">Shares</option></select></label>
+        <label>Board Lot Size <span class="muted">remembered per ticker</span><input id="txLotSize" type="number" step="1" min="1" placeholder="e.g. 500" /></label>
+      </div>
       <label id="qtyLabel">Quantity<input id="txQty" type="number" step="0.0001" value="1" /></label>
       <label id="priceLabel">Price<input id="txPrice" type="number" step="0.0001" value="0" /></label>
       <label id="currentPriceLabel">Current Price <span class="muted">optional; defaults to trade price</span><input id="txCurrentPrice" type="number" step="0.0001" /></label>
@@ -193,6 +197,6 @@
   </div></div>
 
   <div id="toast" class="toast hidden"></div>
-  <script src="app.js?v=2.5"></script>
+  <script src="app.js?v=2.6"></script>
 </body>
 </html>
