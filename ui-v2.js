@@ -42,7 +42,6 @@ function renderPortfolio(){
   $('portfolioPL').className=p.totalPL<0?'negative':'positive';
   $('portfolioExposure').textContent=p.exposure.toFixed(2)+'×';
   renderAllocation('portfolioDonut','portfolioDonutText','portfolioAllocationList',p.hs,p.net);
-  renderHoldingRows('portfolioHoldingsPreview',p.hs.slice(0,6),p.net,true);
   renderHoldingRows('portfolioHoldingsFull',p.hs,p.net,true);
   renderTransactionRows();
   renderCashTab();
@@ -89,7 +88,7 @@ function renderTransactionRows(){
   $('portfolioTransactions').innerHTML=txs.length?txs.map(t=>{
     const a=state.assets.find(x=>x.id===t.assetId);
     const amt=t.amount!=null?Number(t.amount):((Number(t.qty)||0)*(Number(t.price)||0)*multiplier(a));
-    return `<div class="tx-row"><div><div class="tx-title">${esc(t.type)}${a?' · '+esc(a.symbol):''}</div><div class="tx-sub">${esc(t.date)}${t.qty?` · ${t.qty} @ ${money(t.price,t.currency)}`:''}</div></div><div class="tx-actions"><div class="right">${money(amt,t.currency)}</div><button class="delete-btn" type="button" onclick="deleteTransaction('${t.id}')">Delete</button></div></div>`;
+    return `<div class="tx-row"><div><div class="tx-title">${esc(t.type)}${a?' · '+esc(a.symbol):''}</div><div class="tx-sub">${esc(t.date)}${t.qty?` · ${t.qty} @ ${money(t.price,t.currency)}`:''}</div></div><div class="tx-actions"><div class="right">${money(amt,t.currency)}</div><button class="edit-btn" type="button" onclick="openEditTransaction('${t.id}')">Edit</button><button class="delete-btn" type="button" onclick="deleteTransaction('${t.id}')">Delete</button></div></div>`;
   }).join(''):'<div class="empty">No transactions yet.</div>';
 }
 
