@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#08080a" />
   <title>Portfolio Tracker</title>
   <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="styles.css?v=2.0" />
+  <link rel="stylesheet" href="styles.css?v=2.2" />
 </head>
 <body>
   <div class="app-shell">
@@ -24,9 +24,12 @@
         <div class="brand">PORTFOLIO</div>
         <h1 id="portfolioTitle">Portfolio</h1>
       </div>
-      <select id="portfolioCurrency" class="currency-select" aria-label="Display currency">
-        <option>HKD</option><option>USD</option><option>KRW</option>
-      </select>
+      <div class="portfolio-header-actions">
+        <button class="icon-text-btn rename-btn" type="button" onclick="renameCurrentPortfolio()">Rename</button>
+        <select id="portfolioCurrency" class="currency-select" aria-label="Display currency">
+          <option>HKD</option><option>USD</option><option>KRW</option>
+        </select>
+      </div>
     </header>
 
     <main>
@@ -195,6 +198,6 @@
   </div></div>
 
   <div id="toast" class="toast hidden"></div>
-  <script src="app.js?v=2.0"></script>
+  <script src="app.js?v=2.2"></script>
 </body>
 </html>
