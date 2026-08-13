@@ -66,11 +66,20 @@ function renderHoldingRows(target,hs,net,clickable){
   const el=$(target);if(!el)return;
   if(!hs.length){el.innerHTML='<div class="empty">No holdings yet.</div>';return;}
   el.innerHTML=hs.map(h=>{
-    const mv=convert(h.marketValue,h.currency),pl=convert(h.unrealized,h.currency),weight=net?mv/net*100:0;
+    const mv=convert(h.marketValue,h.currency),weight=net?mv/net*100:0;
     return `<div class="holding-row" ${clickable?`onclick="openHoldingDetail('${h.id}')"`:''}>
-      <div><div class="holding-name">${esc(h.symbol)}</div><div class="holding-sub">${h.type==='option'?`${h.qty} contracts · ${esc(h.name)}`:`${h.qty} shares · ${esc(h.name)}`}</div></div>
-      <div class="right"><div>${money(mv)}</div><div class="holding-sub">${money(h.marketValue,h.currency)}</div></div>
-      <div class="right"><div class="${pl<0?'negative':'positive'}">${pct(h.returnPct)}</div><div class="weight">${weight.toFixed(1)}%</div></div>
+      <div>
+        <div class="holding-name">${esc(h.symbol)}</div>
+        <div class="holding-sub">${h.type==='option'?`${h.qty} contracts · ${esc(h.name)}`:`${h.qty} shares · ${esc(h.name)}`}</div>
+      </div>
+      <div class="right">
+        <div class="holding-price">${money(h.price,h.currency)}</div>
+        <div class="holding-sub">Current price</div>
+      </div>
+      <div class="right">
+        <div>${money(mv)}</div>
+        <div class="holding-sub"><span class="${h.returnPct<0?'negative':'positive'}">${pct(h.returnPct)}</span> · ${weight.toFixed(1)}%</div>
+      </div>
     </div>`;
   }).join('');
 }
@@ -131,3 +140,15 @@ $('savePortfolioBtn').addEventListener('click',()=>{
   const a={id:uid('p_'),name};state.accounts.push(a);save();closeModal('portfolioModal');renderAll();openPortfolio(a.id);toast('Portfolio saved.');
 });
 
+window.renameCurrentPortfolio=()=>{
+  const portfolio=state.accounts.find(a=>a.id===currentPortfolioId);
+  if(!portfolio)return;
+  const next=prompt('Rename portfolio',portfolio.name);
+  if(next===null)return;
+  const name=next.trim();
+  if(!name)return toast('Portfolio name cannot be empty.',true);
+  portfolio.name=name;
+  save();
+  renderAll();
+  toast('Portfolio renamed.');
+};
