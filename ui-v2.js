@@ -83,12 +83,23 @@ function renderHoldingRows(target,hs,net,clickable){
   }).join('');
 }
 
+function formatTransactionQuantity(t,a){
+  const qty=Number(t.qty)||0;
+  if(!qty)return '';
+  if(a?.type==='option')return `${qty} contract${qty===1?'':'s'}`;
+  if(t.quantityMode==='lots'&&Number(t.lotSize)>0){
+    const lots=Number.isFinite(Number(t.enteredQty))&&Number(t.enteredQty)>0?Number(t.enteredQty):qty/Number(t.lotSize);
+    return `${lots} lot${lots===1?'':'s'} (${qty} shares)`;
+  }
+  return `${qty} shares`;
+}
+
 function renderTransactionRows(){
   const txs=state.transactions.filter(t=>t.accountId===currentPortfolioId && !['Deposit','Withdrawal'].includes(t.type)).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
   $('portfolioTransactions').innerHTML=txs.length?txs.map(t=>{
     const a=state.assets.find(x=>x.id===t.assetId);
     const amt=t.amount!=null?Number(t.amount):((Number(t.qty)||0)*(Number(t.price)||0)*multiplier(a));
-    return `<div class="tx-row"><div><div class="tx-title">${esc(t.type)}${a?' · '+esc(a.symbol):''}</div><div class="tx-sub">${esc(t.date)}${t.qty?` · ${t.qty} @ ${money(t.price,t.currency)}`:''}</div></div><div class="tx-actions"><div class="right">${money(amt,t.currency)}</div><button class="edit-btn" type="button" onclick="openEditTransaction('${t.id}')">Edit</button><button class="delete-btn" type="button" onclick="deleteTransaction('${t.id}')">Delete</button></div></div>`;
+    return `<div class="tx-row"><div><div class="tx-title">${esc(t.type)}${a?' · '+esc(a.symbol):''}</div><div class="tx-sub">${esc(t.date)}${t.qty?` · ${formatTransactionQuantity(t,a)} @ ${money(t.price,t.currency)}`:''}</div></div><div class="tx-actions"><div class="right">${money(amt,t.currency)}</div><button class="edit-btn" type="button" onclick="openEditTransaction('${t.id}')">Edit</button><button class="delete-btn" type="button" onclick="deleteTransaction('${t.id}')">Delete</button></div></div>`;
   }).join(''):'<div class="empty">No transactions yet.</div>';
 }
 
