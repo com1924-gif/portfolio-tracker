@@ -1,3 +1,5 @@
+let editingTransactionId=null;
+
 function updateTxForm(){
   const type=$('txType').value;const trading=['Buy','Sell'].includes(type);const dividend=type==='Dividend';
   $('assetTypeLabel').classList.toggle('hidden',!trading);
@@ -9,16 +11,58 @@ function updateTxForm(){
   $('priceLabel').firstChild.textContent=trading?'Price':'Amount';
 }
 $('txType').addEventListener('change',updateTxForm);$('txAssetType').addEventListener('change',updateTxForm);
-window.openTransactionModal=()=>{
+
+function setTransactionModalMode(editing){
+  if($('txModalTitle'))$('txModalTitle').textContent=editing?'Edit Transaction':'Add Transaction';
+  $('saveTransactionBtn').textContent=editing?'Save Changes':'Save Transaction';
+}
+
+function resetTransactionForm(){
   populatePortfolioSelects();if(currentPortfolioId)$('txPortfolio').value=currentPortfolioId;
-  $('txType').value='Buy';$('txAssetType').value='stock';$('txTicker').value='';$('txName').value='';$('txQty').value='1';$('txPrice').value='0';$('txCurrentPrice').value='';$('txFee').value='0';$('txDate').value=today();$('txMultiplier').value='100';updateTxForm();openModal('transactionModal');
+  $('txType').value='Buy';$('txAssetType').value='stock';$('txTicker').value='';$('txName').value='';
+  $('txQty').value='1';$('txPrice').value='0';$('txCurrentPrice').value='';$('txFee').value='0';
+  $('txDate').value=today();$('txMultiplier').value='100';$('txOptionType').value='Call';$('txStrike').value='';$('txExpiry').value='';
+  setTransactionModalMode(false);updateTxForm();
+}
+
+window.openTransactionModal=()=>{
+  editingTransactionId=null;
+  resetTransactionForm();
+  openModal('transactionModal');
+};
+
+window.openEditTransaction=id=>{
+  const t=state.transactions.find(x=>x.id===id);if(!t)return toast('Transaction not found.',true);
+  const a=state.assets.find(x=>x.id===t.assetId);
+  editingTransactionId=id;
+  populatePortfolioSelects();
+  $('txPortfolio').value=t.accountId;
+  $('txType').value=t.type;
+  $('txCurrency').value=t.currency||a?.currency||'USD';
+  $('txDate').value=t.date||today();
+  $('txFee').value=Number(t.fee)||0;
+  $('txQty').value=Number(t.qty)||1;
+  $('txPrice').value=t.amount!=null?Number(t.amount):(Number(t.price)||0);
+  $('txCurrentPrice').value=a?.price??'';
+  $('txAssetType').value=a?.type||'stock';
+  $('txTicker').value=a?(a.type==='option'?(a.underlying||a.symbol.split(' ')[0]):a.symbol):'';
+  $('txName').value=a?.name||'';
+  $('txOptionType').value=a?.optionType||'Call';
+  $('txStrike').value=a?.strike??'';
+  $('txExpiry').value=a?.expiry||'';
+  $('txMultiplier').value=a?.multiplier||100;
+  setTransactionModalMode(true);updateTxForm();openModal('transactionModal');
 };
 
 $('saveTransactionBtn').addEventListener('click',()=>{
   try{
+    const existing=editingTransactionId?state.transactions.find(x=>x.id===editingTransactionId):null;
+    const oldAssetId=existing?.assetId||null;
     const accountId=$('txPortfolio').value,type=$('txType').value,currency=$('txCurrency').value,date=$('txDate').value||today();
     const trading=['Buy','Sell'].includes(type),dividend=type==='Dividend';
     if(!accountId)return toast('Select a portfolio.',true);
+    let payload;
+
     if(trading||dividend){
       const ticker=normalizeTicker($('txTicker').value);if(!ticker)return toast('Enter a ticker.',true);
       const assetType=trading?$('txAssetType').value:'stock';
@@ -26,17 +70,27 @@ $('saveTransactionBtn').addEventListener('click',()=>{
       if(assetType==='option'&&(!Number.isFinite(strike)||!expiry))return toast('Option strike and expiry are required.',true);
       let a=findAsset({accountId,type:assetType,ticker,optionType,strike,expiry});
       const price=Number($('txPrice').value),qty=Number($('txQty').value),fee=Number($('txFee').value)||0,currentPrice=Number($('txCurrentPrice').value);
-      if((type==='Sell'||dividend)&&!a)return toast('This holding does not exist yet. Record the Buy first.',true);
+      if((type==='Sell'||dividend)&&!a)return toast('This holding does not exist in the selected portfolio.',true);
       if(trading&&(!Number.isFinite(qty)||qty<=0))return toast('Enter a valid quantity.',true);
       if(!Number.isFinite(price)||price<0)return toast('Enter a valid price.',true);
       if(!a)a=ensureAsset({accountId,type:assetType,ticker,name:$('txName').value.trim(),currency,tradePrice:price,currentPrice,optionType,strike,expiry,multiplier:Number($('txMultiplier').value)||100});
-      else if(Number.isFinite(currentPrice)&&currentPrice>0)a.price=currentPrice;
-      state.transactions.push({id:uid('t_'),accountId,type,assetId:a.id,currency,qty:trading?qty:0,price:trading?price:0,fee,amount:dividend?price:undefined,date});
+      a.currency=currency;
+      if(trading&&$('txName').value.trim())a.name=$('txName').value.trim();
+      if(Number.isFinite(currentPrice)&&currentPrice>0)a.price=currentPrice;
+      if(a.type==='option')a.multiplier=Number($('txMultiplier').value)||100;
+      payload={id:existing?.id||uid('t_'),accountId,type,assetId:a.id,currency,qty:trading?qty:0,price:trading?price:0,fee,amount:dividend?price:undefined,date};
     }else{
       const amount=Number($('txPrice').value);if(!Number.isFinite(amount)||amount<0)return toast('Enter a valid amount.',true);
-      state.transactions.push({id:uid('t_'),accountId,type,assetId:null,currency,amount,date,fee:0,qty:0,price:0});
+      payload={id:existing?.id||uid('t_'),accountId,type,assetId:null,currency,amount,date,fee:0,qty:0,price:0};
     }
-    save();closeModal('transactionModal');currentPortfolioId=accountId;renderAll();showPortfolioTab('transactions');toast('Transaction saved.');
+
+    if(existing)Object.assign(existing,payload);else state.transactions.push(payload);
+    if(existing&&oldAssetId&&oldAssetId!==payload.assetId&&!state.transactions.some(t=>t.assetId===oldAssetId)){
+      state.assets=state.assets.filter(a=>a.id!==oldAssetId);
+    }
+    const wasEditing=!!existing;
+    editingTransactionId=null;
+    save();closeModal('transactionModal');currentPortfolioId=accountId;renderAll();showPortfolioTab('transactions');toast(wasEditing?'Transaction updated.':'Transaction saved.');
   }catch(e){console.error(e);toast(`Could not save transaction: ${e.message}`,true);}
 });
 
@@ -66,7 +120,10 @@ $('saveCashBtn').addEventListener('click',()=>{
 
 window.deleteTransaction=id=>{
   const t=state.transactions.find(x=>x.id===id);if(!t)return;if(!confirm(`Delete ${t.type} transaction?`))return;
-  state.transactions=state.transactions.filter(x=>x.id!==id);save();renderAll();toast('Transaction deleted.');
+  const assetId=t.assetId;
+  state.transactions=state.transactions.filter(x=>x.id!==id);
+  if(assetId&&!state.transactions.some(x=>x.assetId===assetId))state.assets=state.assets.filter(a=>a.id!==assetId);
+  save();renderAll();toast('Transaction deleted.');
 };
 window.deleteFx=id=>{
   if(!confirm('Delete this FX exchange?'))return;state.fx=state.fx.filter(x=>x.id!==id);save();renderAll();toast('FX exchange deleted.');
