@@ -1,5 +1,5 @@
 (async()=>{
-  const files=['core-v2.js?v=2.1','ui-v2.js?v=2.1','actions-v2.js?v=2.1','prices-v2.js?v=2.1'];
+  const files=['core-v2.js?v=2.2','ui-v2.js?v=2.2','actions-v2.js?v=2.2','prices-v2.js?v=2.2'];
   for(const src of files){
     await new Promise((resolve,reject)=>{
       const s=document.createElement('script');
