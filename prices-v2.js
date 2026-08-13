@@ -67,5 +67,14 @@ function installPriceRefreshButtons(){
   }
 }
 
+function loadLayoutEnhancements(){
+  if(document.querySelector('script[data-layout-v210]'))return;
+  const s=document.createElement('script');
+  s.src='layout-v2.js?v=2.10';
+  s.dataset.layoutV210='1';
+  document.body.appendChild(s);
+}
+
 installPriceRefreshButtons();
+loadLayoutEnhancements();
 setTimeout(()=>refreshStockPrices({silent:true}),300);
