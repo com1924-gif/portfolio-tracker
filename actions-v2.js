@@ -4,14 +4,30 @@ let companyLookupTimer=null;
 let companyLookupSeq=0;
 let lastAutoCompanyName='';
 
-function companyLookupTicker(){
-  const raw=normalizeTicker($('txTicker').value);
+function canonicalStockTicker(ticker,currency){
+  const raw=normalizeTicker(ticker);
   if(!raw)return '';
   if(raw.includes('.'))return raw;
-  const currency=$('txCurrency').value;
   if(currency==='HKD'&&/^\d{1,5}$/.test(raw))return raw.padStart(4,'0')+'.HK';
   if(currency==='KRW'&&/^\d{6}$/.test(raw))return raw+'.KS';
   return raw;
+}
+
+function canonicalTickerForAsset(asset){
+  if(!asset||asset.type!=='stock')return '';
+  return canonicalStockTicker(asset.symbol,asset.currency);
+}
+
+function findStockAssetFlexible(accountId,ticker,currency){
+  const raw=normalizeTicker(ticker);
+  const canonical=canonicalStockTicker(ticker,currency);
+  return state.assets.find(a=>a.accountId===accountId&&a.type==='stock'&&(
+    normalizeTicker(a.symbol)===raw||canonicalTickerForAsset(a)===canonical
+  ));
+}
+
+function companyLookupTicker(){
+  return canonicalStockTicker($('txTicker').value,$('txCurrency').value);
 }
 
 async function lookupCompanyName({force=false}={}){
@@ -50,6 +66,23 @@ function scheduleCompanyLookup(){
   companyLookupTimer=setTimeout(()=>lookupCompanyName(),500);
 }
 
+function syncHKLotFields(){
+  const type=$('txType').value;
+  const trading=['Buy','Sell'].includes(type);
+  const assetType=$('txAssetType').value;
+  const hkStock=trading&&assetType==='stock'&&$('txCurrency').value==='HKD';
+  $('hkLotFields').classList.toggle('hidden',!hkStock);
+
+  if(assetType==='option')$('qtyLabel').firstChild.textContent='Contracts';
+  else if(hkStock&&$('txQtyMode').value==='lots')$('qtyLabel').firstChild.textContent='Lots';
+  else $('qtyLabel').firstChild.textContent='Shares';
+
+  if(hkStock&&!$('txLotSize').value){
+    const existing=findStockAssetFlexible($('txPortfolio').value,$('txTicker').value,'HKD');
+    if(existing&&Number(existing.lotSize)>0)$('txLotSize').value=Number(existing.lotSize);
+  }
+}
+
 function updateTxForm(){
   const type=$('txType').value;const trading=['Buy','Sell'].includes(type);const dividend=type==='Dividend';
   $('assetTypeLabel').classList.toggle('hidden',!trading);
@@ -59,12 +92,18 @@ function updateTxForm(){
   $('currentPriceLabel').classList.toggle('hidden',!trading);
   $('optionTxFields').classList.toggle('hidden',!(trading&&$('txAssetType').value==='option'));
   $('priceLabel').firstChild.textContent=trading?'Price':'Amount';
+  syncHKLotFields();
 }
 $('txType').addEventListener('change',updateTxForm);
 $('txAssetType').addEventListener('change',()=>{updateTxForm();scheduleCompanyLookup();});
-$('txTicker').addEventListener('input',scheduleCompanyLookup);
-$('txTicker').addEventListener('blur',()=>lookupCompanyName());
-$('txCurrency').addEventListener('change',scheduleCompanyLookup);
+$('txTicker').addEventListener('input',()=>{
+  if(!editingTransactionId)$('txLotSize').value='';
+  updateTxForm();scheduleCompanyLookup();
+});
+$('txTicker').addEventListener('blur',()=>{lookupCompanyName();syncHKLotFields();});
+$('txCurrency').addEventListener('change',()=>{updateTxForm();scheduleCompanyLookup();});
+$('txQtyMode').addEventListener('change',syncHKLotFields);
+$('txPortfolio').addEventListener('change',syncHKLotFields);
 
 function setTransactionModalMode(editing){
   if($('txModalTitle'))$('txModalTitle').textContent=editing?'Edit Transaction':'Add Transaction';
@@ -75,6 +114,7 @@ function resetTransactionForm(){
   clearTimeout(companyLookupTimer);companyLookupSeq++;lastAutoCompanyName='';
   populatePortfolioSelects();if(currentPortfolioId)$('txPortfolio').value=currentPortfolioId;
   $('txType').value='Buy';$('txAssetType').value='stock';$('txTicker').value='';$('txName').value='';
+  $('txCurrency').value='USD';$('txQtyMode').value='lots';$('txLotSize').value='';
   $('txQty').value='1';$('txPrice').value='0';$('txCurrentPrice').value='';$('txFee').value='0';
   $('txDate').value=today();$('txMultiplier').value='100';$('txOptionType').value='Call';$('txStrike').value='';$('txExpiry').value='';
   setTransactionModalMode(false);updateTxForm();
@@ -97,7 +137,6 @@ window.openEditTransaction=id=>{
   $('txCurrency').value=t.currency||a?.currency||'USD';
   $('txDate').value=t.date||today();
   $('txFee').value=Number(t.fee)||0;
-  $('txQty').value=Number(t.qty)||1;
   $('txPrice').value=t.amount!=null?Number(t.amount):(Number(t.price)||0);
   $('txCurrentPrice').value=a?.price??'';
   $('txAssetType').value=a?.type||'stock';
@@ -107,6 +146,16 @@ window.openEditTransaction=id=>{
   $('txStrike').value=a?.strike??'';
   $('txExpiry').value=a?.expiry||'';
   $('txMultiplier').value=a?.multiplier||100;
+
+  const storedMode=t.quantityMode||'shares';
+  const lotSize=Number(t.lotSize)||Number(a?.lotSize)||0;
+  $('txQtyMode').value=storedMode==='lots'?'lots':'shares';
+  $('txLotSize').value=lotSize||'';
+  if(storedMode==='lots'&&lotSize>0){
+    const entered=Number(t.enteredQty);
+    $('txQty').value=Number.isFinite(entered)&&entered>0?entered:(Number(t.qty)||0)/lotSize;
+  }else $('txQty').value=Number(t.qty)||1;
+
   setTransactionModalMode(true);updateTxForm();openModal('transactionModal');
 };
 
@@ -124,17 +173,41 @@ $('saveTransactionBtn').addEventListener('click',()=>{
       const assetType=trading?$('txAssetType').value:'stock';
       const optionType=$('txOptionType').value,strike=Number($('txStrike').value),expiry=$('txExpiry').value;
       if(assetType==='option'&&(!Number.isFinite(strike)||!expiry))return toast('Option strike and expiry are required.',true);
-      let a=findAsset({accountId,type:assetType,ticker,optionType,strike,expiry});
-      const price=Number($('txPrice').value),qty=Number($('txQty').value),fee=Number($('txFee').value)||0,currentPrice=Number($('txCurrentPrice').value);
+
+      let a=assetType==='stock'
+        ?findStockAssetFlexible(accountId,ticker,currency)
+        :findAsset({accountId,type:assetType,ticker,optionType,strike,expiry});
+
+      const price=Number($('txPrice').value),enteredQty=Number($('txQty').value),fee=Number($('txFee').value)||0,currentPrice=Number($('txCurrentPrice').value);
       if((type==='Sell'||dividend)&&!a)return toast('This holding does not exist in the selected portfolio.',true);
-      if(trading&&(!Number.isFinite(qty)||qty<=0))return toast('Enter a valid quantity.',true);
+      if(trading&&(!Number.isFinite(enteredQty)||enteredQty<=0))return toast('Enter a valid quantity.',true);
       if(!Number.isFinite(price)||price<0)return toast('Enter a valid price.',true);
+
+      let qty=enteredQty,quantityMode=assetType==='option'?'contracts':'shares',lotSize=null;
+      if(trading&&assetType==='stock'&&currency==='HKD'){
+        quantityMode=$('txQtyMode').value;
+        const inputLotSize=Number($('txLotSize').value);
+        lotSize=Number.isFinite(inputLotSize)&&inputLotSize>0?inputLotSize:(Number(a?.lotSize)||null);
+        if(quantityMode==='lots'){
+          if(!Number.isFinite(lotSize)||lotSize<=0||!Number.isInteger(lotSize))return toast('Enter the board lot size for this Hong Kong stock.',true);
+          qty=enteredQty*lotSize;
+        }
+      }
+
       if(!a)a=ensureAsset({accountId,type:assetType,ticker,name:$('txName').value.trim(),currency,tradePrice:price,currentPrice,optionType,strike,expiry,multiplier:Number($('txMultiplier').value)||100});
       a.currency=currency;
       if(trading&&$('txName').value.trim())a.name=$('txName').value.trim();
       if(Number.isFinite(currentPrice)&&currentPrice>0)a.price=currentPrice;
       if(a.type==='option')a.multiplier=Number($('txMultiplier').value)||100;
-      payload={id:existing?.id||uid('t_'),accountId,type,assetId:a.id,currency,qty:trading?qty:0,price:trading?price:0,fee,amount:dividend?price:undefined,date};
+      if(a.type==='stock'&&currency==='HKD'&&Number.isFinite(lotSize)&&lotSize>0)a.lotSize=lotSize;
+
+      payload={
+        id:existing?.id||uid('t_'),accountId,type,assetId:a.id,currency,
+        qty:trading?qty:0,price:trading?price:0,fee,amount:dividend?price:undefined,date,
+        enteredQty:trading?enteredQty:undefined,
+        quantityMode:trading?quantityMode:undefined,
+        lotSize:trading&&assetType==='stock'&&currency==='HKD'&&lotSize?lotSize:undefined
+      };
     }else{
       const amount=Number($('txPrice').value);if(!Number.isFinite(amount)||amount<0)return toast('Enter a valid amount.',true);
       payload={id:existing?.id||uid('t_'),accountId,type,assetId:null,currency,amount,date,fee:0,qty:0,price:0};
@@ -202,7 +275,7 @@ window.openHoldingDetail=id=>{
       <div class="detail-cell"><span>Portfolio Weight</span><strong>${weight.toFixed(1)}%</strong></div>
     </div>
     <div class="detail-title">Transaction history</div>
-    <div class="detail-transactions">${txs.map(t=>`<div class="tx-row"><div><div class="tx-title">${esc(t.type)}</div><div class="tx-sub">${esc(t.date)} · ${t.qty||''}${t.qty?` @ ${money(t.price,t.currency)}`:''}</div></div><div>${t.amount!=null?money(t.amount,t.currency):money((t.qty||0)*(t.price||0)*multiplier(h),t.currency)}</div></div>`).join('')||'<div class="empty">No history.</div>'}</div>`;
+    <div class="detail-transactions">${txs.map(t=>`<div class="tx-row"><div><div class="tx-title">${esc(t.type)}</div><div class="tx-sub">${esc(t.date)}${t.qty?` · ${formatTransactionQuantity(t,h)} @ ${money(t.price,t.currency)}`:''}</div></div><div>${t.amount!=null?money(t.amount,t.currency):money((t.qty||0)*(t.price||0)*multiplier(h),t.currency)}</div></div>`).join('')||'<div class="empty">No history.</div>'}</div>`;
   openModal('holdingModal');
 };
 $('updatePriceBtn').addEventListener('click',()=>{
