@@ -3,179 +3,198 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#111827" />
+  <meta name="theme-color" content="#08080a" />
   <title>Portfolio Tracker</title>
   <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="styles.css" />
-  <style>
-    .portfolio-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
-    .portfolio-add-btn{white-space:nowrap}
-    @media(max-width:520px){.topbar{align-items:flex-start}.portfolio-controls{flex-direction:column;align-items:stretch}.portfolio-controls select{width:100%;max-width:190px}.portfolio-add-btn{width:100%}}
-  </style>
+  <link rel="stylesheet" href="styles.css?v=2.0" />
 </head>
 <body>
   <div class="app-shell">
-    <header class="topbar">
+    <header id="homeHeader" class="app-header">
       <div>
-        <div class="eyebrow">Portfolio Tracker</div>
-        <h1 id="accountTitle">All Accounts</h1>
+        <div class="brand">PORTFOLIO TRACKER</div>
+        <h1>Overview</h1>
       </div>
-      <div class="portfolio-controls">
-        <select id="accountSelect" aria-label="Portfolio"></select>
-        <button type="button" class="ghost-btn portfolio-add-btn" onclick="openPortfolioModal()">+ Portfolio</button>
+      <button class="icon-text-btn" type="button" onclick="openPortfolioModal()">＋ Portfolio</button>
+    </header>
+
+    <header id="portfolioHeader" class="app-header hidden">
+      <button class="back-btn" type="button" onclick="goHome()">←</button>
+      <div class="grow">
+        <div class="brand">PORTFOLIO</div>
+        <h1 id="portfolioTitle">Portfolio</h1>
       </div>
+      <select id="portfolioCurrency" class="currency-select" aria-label="Display currency">
+        <option>HKD</option><option>USD</option><option>KRW</option>
+      </select>
     </header>
 
     <main>
-      <section id="dashboardView" class="view active">
-        <div class="hero-card">
-          <div class="hero-label">Net Assets</div>
-          <div class="hero-value" id="netAssets">HK$0</div>
-          <div class="hero-subrow">
-            <span id="totalPL">P/L HK$0</span>
-            <span id="grossExposure">Exposure 0.00×</span>
-          </div>
-        </div>
+      <section id="homeView" class="view active">
+        <div id="portfolioChips" class="chip-row"></div>
 
-        <div class="metric-grid">
-          <div class="metric-card">
-            <span>Invested</span>
-            <strong id="investedValue">HK$0</strong>
+        <section class="summary-card">
+          <div class="summary-topline">
+            <div>
+              <div class="label">Total Net Assets</div>
+              <div id="homeNetAssets" class="hero-number">HK$0</div>
+            </div>
+            <select id="homeCurrency" class="currency-select" aria-label="Display currency">
+              <option>HKD</option><option>USD</option><option>KRW</option>
+            </select>
           </div>
-          <div class="metric-card">
-            <span>Cash / Margin</span>
-            <strong id="cashValue">HK$0</strong>
+          <div class="summary-grid">
+            <div><span>Total P/L</span><strong id="homeTotalPL">HK$0</strong></div>
+            <div><span>Invested</span><strong id="homeInvested">HK$0</strong></div>
+            <div><span>Cash / Margin</span><strong id="homeCash">HK$0</strong></div>
+            <div><span>Exposure</span><strong id="homeExposure">0.00×</strong></div>
           </div>
-          <div class="metric-card">
-            <span>Unrealized P/L</span>
-            <strong id="unrealizedPL">HK$0</strong>
-          </div>
-          <div class="metric-card">
-            <span>Realized P/L</span>
-            <strong id="realizedPL">HK$0</strong>
-          </div>
-        </div>
-
-        <section class="panel">
-          <div class="section-head">
-            <h2>Holdings</h2>
-            <button class="ghost-btn" onclick="showView('holdingsView')">View all</button>
-          </div>
-          <div id="holdingsList" class="holdings-list"></div>
+          <div class="invested-bar"><span id="homeInvestedBar"></span></div>
         </section>
 
         <section class="panel">
-          <div class="section-head">
-            <h2>Allocation</h2>
-            <span class="muted">Net asset weight</span>
+          <div class="section-head"><h2>Portfolios</h2><span class="muted">Tap to open</span></div>
+          <div id="portfolioCards" class="portfolio-cards"></div>
+        </section>
+
+        <section class="panel">
+          <div class="section-head"><h2>Allocation</h2><span class="muted">All portfolios</span></div>
+          <div class="allocation-layout">
+            <div id="homeDonut" class="donut"><div id="homeDonutText" class="donut-center">0%</div></div>
+            <div id="homeAllocationList" class="allocation-list"></div>
           </div>
-          <div id="allocationList" class="allocation-list"></div>
+        </section>
+
+        <section class="panel">
+          <div class="section-head"><h2>Top Holdings</h2><span class="muted">By market value</span></div>
+          <div id="homeHoldings" class="holding-list"></div>
         </section>
       </section>
 
-      <section id="holdingsView" class="view">
-        <div class="section-head">
-          <h2>All Holdings</h2>
-          <button class="primary-btn" onclick="openAssetModal()">+ Asset</button>
-        </div>
-        <div id="allHoldingsList" class="holdings-list"></div>
-      </section>
+      <section id="portfolioView" class="view">
+        <nav id="portfolioTabs" class="tab-row">
+          <button class="tab-btn active" data-tab="overview">Overview</button>
+          <button class="tab-btn" data-tab="holdings">Holdings</button>
+          <button class="tab-btn" data-tab="transactions">Transactions</button>
+          <button class="tab-btn" data-tab="cash">Cash</button>
+        </nav>
 
-      <section id="transactionsView" class="view">
-        <div class="section-head">
-          <h2>Transactions</h2>
-          <button class="primary-btn" onclick="openTransactionModal()">+ Transaction</button>
-        </div>
-        <div id="transactionList" class="transaction-list"></div>
-      </section>
+        <section id="tab-overview" class="portfolio-tab active">
+          <section class="summary-card portfolio-summary">
+            <div class="label">Net Assets</div>
+            <div id="portfolioNetAssets" class="hero-number">HK$0</div>
+            <div class="summary-grid">
+              <div><span>Market Value</span><strong id="portfolioInvested">HK$0</strong></div>
+              <div><span>Cash / Margin</span><strong id="portfolioCash">HK$0</strong></div>
+              <div><span>Total P/L</span><strong id="portfolioPL">HK$0</strong></div>
+              <div><span>Exposure</span><strong id="portfolioExposure">0.00×</strong></div>
+            </div>
+          </section>
 
-      <section id="fxView" class="view">
-        <div class="section-head">
-          <h2>Currency Exchange</h2>
-          <button class="primary-btn" onclick="openFxModal()">+ FX</button>
-        </div>
-        <div class="panel">
-          <div class="section-head">
-            <h3>Cash balances</h3>
-            <span class="muted">Negative = margin</span>
+          <section class="panel">
+            <div class="section-head"><h2>Allocation</h2><span class="muted">Current holdings</span></div>
+            <div class="allocation-layout">
+              <div id="portfolioDonut" class="donut"><div id="portfolioDonutText" class="donut-center">0%</div></div>
+              <div id="portfolioAllocationList" class="allocation-list"></div>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="section-head"><h2>Holdings</h2><button class="ghost-btn" type="button" onclick="showPortfolioTab('holdings')">View all</button></div>
+            <div id="portfolioHoldingsPreview" class="holding-list"></div>
+          </section>
+        </section>
+
+        <section id="tab-holdings" class="portfolio-tab">
+          <div class="section-head sticky-section-head"><h2>Holdings</h2><span class="muted">Read-only, generated from transactions</span></div>
+          <div id="portfolioHoldingsFull" class="holding-list"></div>
+        </section>
+
+        <section id="tab-transactions" class="portfolio-tab">
+          <div class="section-head sticky-section-head">
+            <div><h2>Transactions</h2><div class="muted">Buy / Sell / Dividend / Fees</div></div>
+            <button class="primary-btn" type="button" onclick="openTransactionModal()">＋ New</button>
           </div>
-          <div id="cashBalances"></div>
-        </div>
-        <div id="fxList" class="transaction-list"></div>
+          <div id="portfolioTransactions" class="transaction-list"></div>
+        </section>
+
+        <section id="tab-cash" class="portfolio-tab">
+          <div class="section-head sticky-section-head">
+            <div><h2>Cash</h2><div class="muted">Deposit / Withdraw / Exchange</div></div>
+            <button class="primary-btn" type="button" onclick="openCashModal()">＋ Cash</button>
+          </div>
+          <section class="panel">
+            <div class="section-head"><h3>Balances</h3><span class="muted">Negative balance = margin</span></div>
+            <div id="portfolioCashBalances"></div>
+          </section>
+          <div id="portfolioCashHistory" class="transaction-list"></div>
+        </section>
       </section>
     </main>
-
-    <nav class="bottom-nav">
-      <button class="nav-btn active" data-view="dashboardView">Overview</button>
-      <button class="nav-btn" data-view="holdingsView">Holdings</button>
-      <button class="nav-btn" data-view="transactionsView">Transactions</button>
-      <button class="nav-btn" data-view="fxView">FX</button>
-    </nav>
   </div>
 
   <div id="portfolioModal" class="modal-overlay hidden"><div class="modal-wrap">
-    <form id="portfolioForm" class="modal-card">
+    <form class="modal-card" onsubmit="return false;">
       <div class="section-head"><h3>Add Portfolio</h3><button type="button" class="icon-btn modal-close">×</button></div>
-      <label>Portfolio Name<input id="portfolioName" maxlength="60" placeholder="e.g. IBKR Long Term" /></label>
+      <label>Portfolio Name<input id="portfolioName" maxlength="60" placeholder="e.g. FIRE" /></label>
       <button type="button" id="savePortfolioBtn" class="primary-btn full">Save Portfolio</button>
     </form>
   </div></div>
 
-  <div id="assetModal" class="modal-overlay hidden"><div class="modal-wrap">
-    <form id="assetForm" class="modal-card">
-      <div class="section-head">
-        <h3>Add Asset</h3><button type="button" class="icon-btn modal-close">×</button>
-      </div>
-      <label>Portfolio<select id="assetAccount" required></select></label>
-      <label>Type<select id="assetType"><option value="stock">Stock</option><option value="option">Option</option></select></label>
-      <label>Symbol<input id="assetSymbol" required placeholder="ACN / 000660" /></label>
-      <label>Name<input id="assetName" placeholder="Accenture" /></label>
-      <label>Currency<select id="assetCurrency"><option>USD</option><option>HKD</option><option>KRW</option></select></label>
-      <label>Current Price<input id="assetPrice" type="number" step="0.0001" required /></label>
-      <div id="optionFields" class="option-fields hidden">
-        <label>Option Type<select id="optionType"><option>Call</option><option>Put</option></select></label>
-        <label>Strike<input id="optionStrike" type="number" step="0.01" /></label>
-        <label>Expiry<input id="optionExpiry" type="date" /></label>
-        <label>Multiplier<input id="optionMultiplier" type="number" value="100" /></label>
-      </div>
-      <button type="button" id="saveAssetBtn" class="primary-btn full">Save Asset</button>
-    </form>
-  </div></div>
-
   <div id="transactionModal" class="modal-overlay hidden"><div class="modal-wrap">
-    <form id="transactionForm" class="modal-card">
+    <form class="modal-card" onsubmit="return false;">
       <div class="section-head"><h3>Add Transaction</h3><button type="button" class="icon-btn modal-close">×</button></div>
-      <label>Portfolio<select id="txAccount" required></select></label>
-      <label>Type<select id="txType">
-        <option>Buy</option><option>Sell</option><option>Deposit</option><option>Withdrawal</option>
-        <option>Dividend</option><option>Fee</option><option>Tax</option><option>Interest</option><option>Margin Interest</option>
-      </select></label>
-      <label id="txAssetLabel">Asset<select id="txAsset"></select></label>
+      <label>Portfolio<select id="txPortfolio"></select></label>
+      <label>Type<select id="txType"><option>Buy</option><option>Sell</option><option>Dividend</option><option>Fee</option><option>Tax</option><option>Interest</option><option>Margin Interest</option></select></label>
+      <label id="assetTypeLabel">Asset Type<select id="txAssetType"><option value="stock">Stock</option><option value="option">Option</option></select></label>
+      <label id="tickerLabel">Ticker<input id="txTicker" autocomplete="off" placeholder="ACN / NVDA / 1425.HK / 000660.KS" /></label>
+      <label id="nameLabel">Name <span class="muted">optional</span><input id="txName" placeholder="Accenture" /></label>
+      <div id="optionTxFields" class="option-fields hidden">
+        <label>Option Type<select id="txOptionType"><option>Call</option><option>Put</option></select></label>
+        <label>Strike<input id="txStrike" type="number" step="0.01" placeholder="220" /></label>
+        <label>Expiry<input id="txExpiry" type="date" /></label>
+        <label>Multiplier<input id="txMultiplier" type="number" value="100" /></label>
+      </div>
       <label>Currency<select id="txCurrency"><option>USD</option><option>HKD</option><option>KRW</option></select></label>
       <label id="qtyLabel">Quantity<input id="txQty" type="number" step="0.0001" value="1" /></label>
       <label id="priceLabel">Price<input id="txPrice" type="number" step="0.0001" value="0" /></label>
+      <label id="currentPriceLabel">Current Price <span class="muted">optional; defaults to trade price</span><input id="txCurrentPrice" type="number" step="0.0001" /></label>
       <label>Fee<input id="txFee" type="number" step="0.01" value="0" /></label>
       <label>Date<input id="txDate" type="date" /></label>
       <button type="button" id="saveTransactionBtn" class="primary-btn full">Save Transaction</button>
     </form>
   </div></div>
 
-  <div id="fxModal" class="modal-overlay hidden"><div class="modal-wrap">
-    <form id="fxForm" class="modal-card">
-      <div class="section-head"><h3>Currency Exchange</h3><button type="button" class="icon-btn modal-close">×</button></div>
-      <label>Portfolio<select id="fxAccount" required></select></label>
-      <label>From Currency<select id="fxFrom"><option>HKD</option><option>USD</option><option>KRW</option></select></label>
-      <label>From Amount<input id="fxFromAmount" type="number" step="0.01" required /></label>
-      <label>To Currency<select id="fxTo"><option>USD</option><option>HKD</option><option>KRW</option></select></label>
-      <label>Received Amount<input id="fxToAmount" type="number" step="0.01" required /></label>
-      <label>Fee<input id="fxFee" type="number" step="0.01" value="0" /></label>
-      <label>Date<input id="fxDate" type="date" /></label>
-      <button type="button" id="saveFxBtn" class="primary-btn full">Save FX</button>
+  <div id="cashModal" class="modal-overlay hidden"><div class="modal-wrap">
+    <form class="modal-card" onsubmit="return false;">
+      <div class="section-head"><h3>Cash Action</h3><button type="button" class="icon-btn modal-close">×</button></div>
+      <label>Portfolio<select id="cashPortfolio"></select></label>
+      <label>Action<select id="cashAction"><option value="Deposit">Deposit</option><option value="Withdrawal">Withdraw</option><option value="Exchange">Exchange Currency</option></select></label>
+      <div id="cashSingleFields">
+        <label>Currency<select id="cashCurrency"><option>HKD</option><option>USD</option><option>KRW</option></select></label>
+        <label>Amount<input id="cashAmount" type="number" step="0.01" /></label>
+      </div>
+      <div id="cashExchangeFields" class="hidden">
+        <label>From Currency<select id="cashFrom"><option>HKD</option><option>USD</option><option>KRW</option></select></label>
+        <label>From Amount<input id="cashFromAmount" type="number" step="0.01" /></label>
+        <label>To Currency<select id="cashTo"><option>USD</option><option>HKD</option><option>KRW</option></select></label>
+        <label>Received Amount<input id="cashToAmount" type="number" step="0.01" /></label>
+        <label>FX Fee<input id="cashFxFee" type="number" step="0.01" value="0" /></label>
+      </div>
+      <label>Date<input id="cashDate" type="date" /></label>
+      <button type="button" id="saveCashBtn" class="primary-btn full">Save Cash Action</button>
     </form>
   </div></div>
 
+  <div id="holdingModal" class="modal-overlay hidden"><div class="modal-wrap">
+    <div class="modal-card">
+      <div class="section-head"><div><div class="brand">HOLDING</div><h3 id="holdingDetailTitle">Holding</h3></div><button type="button" class="icon-btn modal-close">×</button></div>
+      <div id="holdingDetailBody"></div>
+      <button type="button" id="updatePriceBtn" class="ghost-btn full">Update Current Price</button>
+    </div>
+  </div></div>
+
   <div id="toast" class="toast hidden"></div>
-  <script src="app.js?v=1.5"></script>
-  <script src="portfolio.js?v=1.5"></script>
+  <script src="app.js?v=2.0"></script>
 </body>
 </html>
