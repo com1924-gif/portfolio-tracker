@@ -28,7 +28,6 @@ function renderHome(){
   }).join(''):`<div class="empty">No portfolio yet. Add your first portfolio.</div>`;
 
   renderAllocation('homeDonut','homeDonutText','homeAllocationList',s.hs,s.net);
-  renderHoldingRows('homeHoldings',s.hs.slice().sort((a,b)=>convert(b.marketValue,b.currency)-convert(a.marketValue,a.currency)).slice(0,8),s.net,false);
 }
 
 function renderPortfolio(){
@@ -161,4 +160,30 @@ window.renameCurrentPortfolio=()=>{
   save();
   renderAll();
   toast('Portfolio renamed.');
+};
+
+window.deleteCurrentPortfolio=()=>{
+  const id=currentPortfolioId;
+  const portfolio=state.accounts.find(a=>a.id===id);
+  if(!portfolio)return;
+  const txCount=state.transactions.filter(t=>t.accountId===id).length;
+  const fxCount=state.fx.filter(f=>f.accountId===id).length;
+  const assetIds=new Set(state.assets.filter(a=>a.accountId===id).map(a=>a.id));
+  const holdingCount=holdingsFor(id).length;
+  const detail=[holdingCount?`${holdingCount} holding${holdingCount===1?'':'s'}`:'',txCount?`${txCount} transaction${txCount===1?'':'s'}`:'',fxCount?`${fxCount} FX record${fxCount===1?'':'s'}`:''].filter(Boolean).join(', ');
+  const warning=detail?`\n\nThis will permanently delete ${detail}.`:'\n\nThis portfolio is empty.';
+  if(!confirm(`Delete portfolio "${portfolio.name}"?${warning}\n\nThis cannot be undone.`))return;
+
+  state.transactions=state.transactions.filter(t=>t.accountId!==id&&!assetIds.has(t.assetId));
+  state.fx=state.fx.filter(f=>f.accountId!==id);
+  state.assets=state.assets.filter(a=>a.accountId!==id);
+  state.accounts=state.accounts.filter(a=>a.id!==id);
+  currentPortfolioId=null;
+  save();
+  $('portfolioView').classList.remove('active');
+  $('portfolioHeader').classList.add('hidden');
+  $('homeView').classList.add('active');
+  $('homeHeader').classList.remove('hidden');
+  renderAll();
+  toast('Portfolio deleted.');
 };
