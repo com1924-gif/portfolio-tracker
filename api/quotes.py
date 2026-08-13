@@ -28,6 +28,48 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         try:
             qs = parse_qs(urlparse(self.path).query)
+            mode = qs.get("mode", ["quote"])[0].lower()
+
+            if mode == "search":
+                query = qs.get("q", [""])[0].strip()
+                if not query:
+                    return self._send_json(400, {"error": "Provide ?mode=search&q=ACN"})
+                try:
+                    search = yf.Search(
+                        query,
+                        max_results=8,
+                        news_count=0,
+                        lists_count=0,
+                        include_cb=False,
+                        include_nav_links=False,
+                        include_research=False,
+                        include_cultural_assets=False,
+                        enable_fuzzy_query=True,
+                        timeout=10,
+                        raise_errors=False,
+                    )
+                    results = []
+                    for quote in search.quotes or []:
+                        symbol = quote.get("symbol")
+                        name = quote.get("longname") or quote.get("shortname") or quote.get("name")
+                        if not symbol:
+                            continue
+                        results.append({
+                            "symbol": symbol,
+                            "name": name,
+                            "shortName": quote.get("shortname"),
+                            "longName": quote.get("longname"),
+                            "quoteType": quote.get("quoteType"),
+                            "exchange": quote.get("exchDisp") or quote.get("exchange"),
+                        })
+                    return self._send_json(
+                        200,
+                        {"query": query, "results": results},
+                        "public, max-age=86400, s-maxage=86400",
+                    )
+                except Exception as exc:
+                    return self._send_json(200, {"query": query, "results": [], "error": str(exc)})
+
             raw = qs.get("symbols", [""])[0]
             symbols = [s.strip().upper() for s in raw.split(",") if s.strip()]
             symbols = list(dict.fromkeys(symbols))[:50]
@@ -35,7 +77,6 @@ class handler(BaseHTTPRequestHandler):
             if not symbols:
                 return self._send_json(400, {"error": "Provide ?symbols=ACN,0700.HK,000660.KS"})
 
-            mode = qs.get("mode", ["quote"])[0].lower()
             if mode == "history":
                 start = qs.get("start", [""])[0]
                 if not start:
