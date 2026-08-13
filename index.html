@@ -146,7 +146,7 @@
       <label>Type<select id="txType"><option>Buy</option><option>Sell</option><option>Dividend</option><option>Fee</option><option>Tax</option><option>Interest</option><option>Margin Interest</option></select></label>
       <label id="assetTypeLabel">Asset Type<select id="txAssetType"><option value="stock">Stock</option><option value="option">Option</option></select></label>
       <label id="tickerLabel">Ticker<input id="txTicker" autocomplete="off" placeholder="ACN / NVDA / 1425.HK / 000660.KS" /></label>
-      <label id="nameLabel">Name <span class="muted">optional</span><input id="txName" placeholder="Accenture" /></label>
+      <label id="nameLabel">Name <span class="muted">auto from Yahoo; editable</span><input id="txName" placeholder="Accenture" /></label>
       <div id="optionTxFields" class="option-fields hidden">
         <label>Option Type<select id="txOptionType"><option>Call</option><option>Put</option></select></label>
         <label>Strike<input id="txStrike" type="number" step="0.01" placeholder="220" /></label>
@@ -193,6 +193,6 @@
   </div></div>
 
   <div id="toast" class="toast hidden"></div>
-  <script src="app.js?v=2.4"></script>
+  <script src="app.js?v=2.5"></script>
 </body>
 </html>
