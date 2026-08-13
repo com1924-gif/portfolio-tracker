@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#08080a" />
   <title>Portfolio Tracker</title>
   <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="styles.css?v=2.2" />
+  <link rel="stylesheet" href="styles.css?v=2.4" />
 </head>
 <body>
   <div class="app-shell">
@@ -101,11 +101,6 @@
               <div id="portfolioAllocationList" class="allocation-list"></div>
             </div>
           </section>
-
-          <section class="panel">
-            <div class="section-head"><h2>Holdings</h2><button class="ghost-btn" type="button" onclick="showPortfolioTab('holdings')">View all</button></div>
-            <div id="portfolioHoldingsPreview" class="holding-list"></div>
-          </section>
         </section>
 
         <section id="tab-holdings" class="portfolio-tab">
@@ -146,7 +141,7 @@
 
   <div id="transactionModal" class="modal-overlay hidden"><div class="modal-wrap">
     <form class="modal-card" onsubmit="return false;">
-      <div class="section-head"><h3>Add Transaction</h3><button type="button" class="icon-btn modal-close">×</button></div>
+      <div class="section-head"><h3 id="txModalTitle">Add Transaction</h3><button type="button" class="icon-btn modal-close">×</button></div>
       <label>Portfolio<select id="txPortfolio"></select></label>
       <label>Type<select id="txType"><option>Buy</option><option>Sell</option><option>Dividend</option><option>Fee</option><option>Tax</option><option>Interest</option><option>Margin Interest</option></select></label>
       <label id="assetTypeLabel">Asset Type<select id="txAssetType"><option value="stock">Stock</option><option value="option">Option</option></select></label>
@@ -198,6 +193,6 @@
   </div></div>
 
   <div id="toast" class="toast hidden"></div>
-  <script src="app.js?v=2.3"></script>
+  <script src="app.js?v=2.4"></script>
 </body>
 </html>
