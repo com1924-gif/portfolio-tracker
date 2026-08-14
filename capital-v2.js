@@ -1,6 +1,6 @@
 (()=>{
-  if(window.__portfolioCapitalInstalledV212)return;
-  window.__portfolioCapitalInstalledV212=true;
+  if(window.__portfolioCapitalInstalledV213)return;
+  window.__portfolioCapitalInstalledV213=true;
 
   const originalSummaryFor=window.summaryFor;
   const originalRenderHome=window.renderHome;
@@ -60,6 +60,17 @@
     grid.appendChild(cell);
   }
 
+  function removeSummaryMetric(id){
+    const el=document.getElementById(id);
+    if(el?.parentElement)el.parentElement.remove();
+  }
+
+  function renameMetric(id,label){
+    const el=document.getElementById(id);
+    const metricLabel=el?.parentElement?.querySelector('span');
+    if(metricLabel)metricLabel.textContent=label;
+  }
+
   function setMetric(id,value,number=null){
     const el=document.getElementById(id);
     if(!el)return;
@@ -73,6 +84,8 @@
     const lifetime=document.getElementById('homeTotalPL');
     const lifetimeLabel=lifetime?.parentElement?.querySelector('span');
     if(lifetimeLabel)lifetimeLabel.textContent='Lifetime P/L';
+    renameMetric('homeInvested','Market Value');
+
     if(s.capitalComplete){
       setMetric('homeTotalPL',signedMoney(s.lifetimePL),s.lifetimePL);
     }else{
@@ -82,9 +95,8 @@
 
     const grid=lifetime?.closest('.summary-grid');
     addSummaryMetric(grid,'homeNetContributions','Net Contributions');
-    addSummaryMetric(grid,'homeTrackedPL','Tracked P/L');
+    removeSummaryMetric('homeTrackedPL');
     setMetric('homeNetContributions',s.capitalComplete?money(s.netContributions):(s.capitalRequiredCount?`${s.capitalConfiguredCount}/${s.capitalRequiredCount} set`:'—'));
-    setMetric('homeTrackedPL',signedMoney(s.trackedPL),s.trackedPL);
 
     const cards=[...document.querySelectorAll('#portfolioCards .portfolio-card')];
     cards.forEach((card,index)=>{
@@ -110,6 +122,7 @@
     const lifetime=document.getElementById('portfolioPL');
     const lifetimeLabel=lifetime?.parentElement?.querySelector('span');
     if(lifetimeLabel)lifetimeLabel.textContent='Lifetime P/L';
+    renameMetric('portfolioInvested','Market Value');
     if(s.capitalComplete)setMetric('portfolioPL',signedMoney(s.lifetimePL),s.lifetimePL);
     else setMetric('portfolioPL','Set capital');
 
