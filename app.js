@@ -1,5 +1,5 @@
 (async()=>{
-  const files=['core-v2.js?v=2.14','ui-v2.js?v=2.14','actions-v2.js?v=2.14','lifecycle-v2.js?v=2.14','delete-guard-v2.js?v=2.14','ledger-v2.js?v=2.14','capital-v2.js?v=2.14','reorder-v2.js?v=2.14','swipe-nav-v2.js?v=2.14','sync-v2.js?v=2.14','prices-v2.js?v=2.14','history-v2.js?v=2.14','history-style-v2.js?v=2.14'];
+  const files=['core-v2.js?v=2.15','ui-v2.js?v=2.15','actions-v2.js?v=2.15','lifecycle-v2.js?v=2.15','delete-guard-v2.js?v=2.15','ledger-v2.js?v=2.15','capital-v2.js?v=2.15','reorder-v2.js?v=2.15','swipe-nav-v2.js?v=2.15','sync-v2.js?v=2.15','prices-v2.js?v=2.15','history-v2.js?v=2.15','history-style-v2.js?v=2.15'];
   for(const src of files){
     await new Promise((resolve,reject)=>{
       const s=document.createElement('script');
