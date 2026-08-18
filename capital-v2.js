@@ -1,6 +1,6 @@
 (()=>{
-  if(window.__portfolioCapitalInstalledV213)return;
-  window.__portfolioCapitalInstalledV213=true;
+  if(window.__portfolioCapitalInstalledV215)return;
+  window.__portfolioCapitalInstalledV215=true;
 
   const originalSummaryFor=window.summaryFor;
   const originalRenderHome=window.renderHome;
@@ -46,6 +46,21 @@
   }
   window.capitalSummary=capitalSummary;
 
+  function todayPLForHoldings(hs){
+    const stockHoldings=(hs||[]).filter(h=>h.type==='stock');
+    const options=(hs||[]).filter(h=>h.type==='option');
+    const eligible=stockHoldings.filter(h=>
+      Number.isFinite(Number(h.price)) &&
+      Number.isFinite(Number(h.previousClose)) &&
+      Number(h.previousClose)>0
+    );
+    const value=eligible.reduce((sum,h)=>{
+      const local=(Number(h.qty)||0)*(Number(h.price)-Number(h.previousClose))*multiplier(h);
+      return sum+convert(local,h.currency);
+    },0);
+    return {value,eligibleCount:eligible.length,stockCount:stockHoldings.length,optionCount:options.length};
+  }
+
   const style=document.createElement('style');
   style.textContent=`
     .capital-note{font-size:12px;color:var(--muted);line-height:1.45;margin:-4px 0 12px}
@@ -71,6 +86,14 @@
     if(metricLabel)metricLabel.textContent=label;
   }
 
+  function orderSummaryMetrics(grid,ids){
+    if(!grid)return;
+    ids.forEach(id=>{
+      const el=document.getElementById(id);
+      if(el?.parentElement)grid.appendChild(el.parentElement);
+    });
+  }
+
   function setMetric(id,value,number=null){
     const el=document.getElementById(id);
     if(!el)return;
@@ -81,6 +104,7 @@
 
   function decorateHome(){
     const s=capitalSummary();
+    const day=todayPLForHoldings(s.hs);
     const lifetime=document.getElementById('homeTotalPL');
     const lifetimeLabel=lifetime?.parentElement?.querySelector('span');
     if(lifetimeLabel)lifetimeLabel.textContent='Lifetime P/L';
@@ -94,9 +118,26 @@
     }
 
     const grid=lifetime?.closest('.summary-grid');
+    addSummaryMetric(grid,'homeTodayPL','Today P/L');
     addSummaryMetric(grid,'homeNetContributions','Net Contributions');
     removeSummaryMetric('homeTrackedPL');
+
+    renameMetric('homeTodayPL',day.optionCount?'Today P/L (stocks)':'Today P/L');
+    if(day.eligibleCount){
+      setMetric('homeTodayPL',signedMoney(day.value),day.value);
+    }else if(day.stockCount){
+      setMetric('homeTodayPL','Refresh prices');
+    }else{
+      setMetric('homeTodayPL','—');
+    }
+
     setMetric('homeNetContributions',s.capitalComplete?money(s.netContributions):(s.capitalRequiredCount?`${s.capitalConfiguredCount}/${s.capitalRequiredCount} set`:'—'));
+
+    orderSummaryMetrics(grid,[
+      'homeTotalPL','homeTodayPL',
+      'homeCash','homeInvested',
+      'homeNetContributions','homeExposure'
+    ]);
 
     const cards=[...document.querySelectorAll('#portfolioCards .portfolio-card')];
     cards.forEach((card,index)=>{
