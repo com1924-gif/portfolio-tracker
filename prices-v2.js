@@ -34,6 +34,10 @@ async function refreshStockPrices({force=false,silent=false}={}){
       const q=quotes[yahoo];
       if(q && Number.isFinite(Number(q.price)) && Number(q.price)>0){
         asset.price=Number(q.price);
+        if(Number.isFinite(Number(q.previousClose)) && Number(q.previousClose)>0){
+          asset.previousClose=Number(q.previousClose);
+          asset.previousCloseUpdatedAt=new Date().toISOString();
+        }
         asset.quoteSymbol=yahoo;
         asset.quoteUpdatedAt=new Date().toISOString();
         asset.quoteSource='Yahoo Finance / yfinance';
