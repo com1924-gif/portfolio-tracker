@@ -138,8 +138,6 @@ class handler(BaseHTTPRequestHandler):
                                     }
                                     if adj_close is not None and adj_close == adj_close:
                                         point["adjClose"] = float(adj_close)
-                                    else:
-                                        point["adjClose"] = float(close)
                                     points.append(point)
                         result[symbol] = points
                     except Exception as exc:
