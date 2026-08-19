@@ -2,6 +2,7 @@ import json
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import yfinance as yf
 
@@ -36,6 +37,33 @@ class handler(BaseHTTPRequestHandler):
                 if not closes.empty:
                     price = float(closes.iloc[-1])
         return float(price) if price is not None else None
+
+    @staticmethod
+    def _append_live_benchmark_point(symbol, points):
+        if symbol not in {"VOO", "QQQ"} or not points:
+            return points
+        try:
+            live_price = handler._last_price(symbol)
+            if not live_price or live_price <= 0:
+                return points
+            last = points[-1]
+            last_close = float(last.get("close") or 0)
+            last_adj = float(last.get("adjClose") or last_close or 0)
+            factor = (last_adj / last_close) if last_close > 0 and last_adj > 0 else 1.0
+            market_date = datetime.now(ZoneInfo("America/New_York")).strftime("%Y-%m-%d")
+            live_point = {
+                "date": market_date,
+                "close": float(live_price),
+                "adjClose": float(live_price * factor),
+                "live": True,
+            }
+            if last.get("date") == market_date:
+                points[-1] = live_point
+            else:
+                points.append(live_point)
+        except Exception:
+            pass
+        return points
 
     def do_GET(self):
         try:
@@ -139,14 +167,16 @@ class handler(BaseHTTPRequestHandler):
                                     if adj_close is not None and adj_close == adj_close:
                                         point["adjClose"] = float(adj_close)
                                     points.append(point)
-                        result[symbol] = points
+                        result[symbol] = self._append_live_benchmark_point(symbol, points)
                     except Exception as exc:
                         result[symbol] = {"error": str(exc), "points": []}
 
+                benchmark_only = bool(symbols) and all(s in {"VOO", "QQQ"} for s in symbols)
+                history_cache = "public, max-age=60, s-maxage=60" if benchmark_only else "public, max-age=900, s-maxage=900"
                 return self._send_json(
                     200,
                     {"history": result, "start": start},
-                    "public, max-age=900, s-maxage=900",
+                    history_cache,
                 )
 
             result = {}
