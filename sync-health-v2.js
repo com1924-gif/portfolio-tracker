@@ -6,7 +6,6 @@
   const SYNC_META_STORE='portfolioTrackerSyncMetaV1';
   const HEALTH_STORE='portfolioTrackerSyncHealthV220';
   const LOCAL_SAFETY_BACKUP='portfolioTrackerPreCloudConnectBackupV1';
-  const STORAGE_KEY='portfolioTrackerV2';
   const CHECK_MS=1800;
   let localDirty=false;
   let checking=false;
@@ -83,9 +82,11 @@
     if(!btn)return;
     const mode=currentMode();
     const symbols={disconnected:'☁ Sync',offline:'☁ ×',conflict:'☁ ⚠',syncing:'☁ …',local:'☁ ↑',error:'☁ !',synced:'☁ ✓'};
-    btn.textContent=symbols[mode.key]||'☁ Sync';
+    const nextText=symbols[mode.key]||'☁ Sync';
+    if(btn.textContent!==nextText)btn.textContent=nextText;
     const health=readHealth();
-    btn.title=`Cloud Sync — ${mode.label}${health.lastSyncedAt?` — Last synced ${when(health.lastSyncedAt)}`:''}`;
+    const nextTitle=`Cloud Sync — ${mode.label}${health.lastSyncedAt?` — Last synced ${when(health.lastSyncedAt)}`:''}`;
+    if(btn.title!==nextTitle)btn.title=nextTitle;
   }
 
   function injectHealthUI(){
@@ -143,7 +144,7 @@
     const localRestore=document.getElementById('restoreLocalSafetyBtn');
     if(localRestore)localRestore.classList.toggle('hidden',!localStorage.getItem(LOCAL_SAFETY_BACKUP));
     const show=document.getElementById('showBackupsBtn');
-    if(show)show.textContent='View Cloud Backups';
+    if(show&&show.textContent!=='View Cloud Backups')show.textContent='View Cloud Backups';
     decorateHeader();
   }
 
@@ -177,7 +178,7 @@
   function validateBackupState(candidate){
     const s=candidate?.state&&typeof candidate.state==='object'?candidate.state:candidate;
     if(!s||typeof s!=='object')throw new Error('Backup does not contain a valid portfolio state.');
-    const out=structuredClone?structuredClone(s):JSON.parse(JSON.stringify(s));
+    const out=typeof structuredClone==='function'?structuredClone(s):JSON.parse(JSON.stringify(s));
     out.settings=out.settings||{baseCurrency:'HKD',fx:{HKD:1,USD:7.80,KRW:0.0056}};
     out.settings.fx={HKD:1,USD:7.80,KRW:0.0056,...(out.settings.fx||{})};
     out.accounts=Array.isArray(out.accounts)?out.accounts:[];
@@ -243,7 +244,6 @@
       const next=validateBackupState(backup);
       const saved=backup.savedAt?new Date(backup.savedAt).toLocaleString():'unknown time';
       if(!confirm(`Restore the local safety backup from ${saved}?\n\nThe current local state will be replaced.`))return;
-      // Preserve the state being replaced separately so a mistaken restore is reversible once more.
       const current={savedAt:new Date().toISOString(),reason:'before local safety restore',state};
       state=next;currentPortfolioId=null;save();renderAll();if(typeof goHome==='function')goHome();
       localStorage.setItem(LOCAL_SAFETY_BACKUP,JSON.stringify(current));
