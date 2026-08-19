@@ -65,6 +65,7 @@ function renderHoldingRows(target,hs,net,clickable){
   if(!hs.length){el.innerHTML='<div class="empty">No holdings yet.</div>';return;}
   el.innerHTML=hs.map(h=>{
     const mv=convert(h.marketValue,h.currency),weight=net?mv/net*100:0;
+    const openPL=convert(h.unrealized,h.currency);
     return `<div class="holding-row" ${clickable?`onclick="openHoldingDetail('${h.id}')"`:''}>
       <div>
         <div class="holding-name">${esc(h.symbol)}</div>
@@ -76,7 +77,7 @@ function renderHoldingRows(target,hs,net,clickable){
       </div>
       <div class="right">
         <div>${money(mv)}</div>
-        <div class="holding-sub"><span class="${h.returnPct<0?'negative':'positive'}">${pct(h.returnPct)}</span> · ${weight.toFixed(1)}%</div>
+        <div class="holding-sub"><span class="${openPL<0?'negative':'positive'}">P/L ${signedMoney(openPL)} (${pct(h.returnPct)})</span> · ${weight.toFixed(1)}%</div>
       </div>
     </div>`;
   }).join('');
