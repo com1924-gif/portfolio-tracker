@@ -1,10 +1,11 @@
 (()=>{
-  if(window.__portfolioPerformanceInstalledV218)return;
-  window.__portfolioPerformanceInstalledV218=true;
+  if(window.__portfolioPerformanceInstalledV221)return;
+  window.__portfolioPerformanceInstalledV221=true;
 
   const PERF_API='https://portfolio-tracker-quotes.vercel.app/';
   const PERF_PERIODS=['1M','3M','6M','YTD','1Y','ALL'];
   let performancePeriod='YTD';
+  let benchmarkLastFetchedAt=null;
   const benchmarkCache=new Map();
 
   const style=document.createElement('style');
@@ -13,10 +14,6 @@
     .performance-metric{border:1px solid var(--line);background:#111115;border-radius:14px;padding:13px}
     .performance-metric span{display:block;color:var(--muted);font-size:12px;margin-bottom:5px}
     .performance-metric strong{display:block;font-size:17px;line-height:1.25}
-    .performance-pair{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
-    .performance-holding-card{border:1px solid var(--line);background:#111115;border-radius:14px;padding:13px}
-    .performance-holding-card .label{font-size:12px;color:var(--muted);margin-bottom:6px}
-    .performance-holding-card .symbol{font-weight:800;font-size:17px;margin-bottom:4px}
     .performance-contribution-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;padding:11px 0;border-bottom:1px solid var(--line)}
     .performance-contribution-row:last-child{border-bottom:0}
     .performance-contribution-sub{font-size:12px;color:var(--muted);margin-top:3px}
@@ -33,7 +30,7 @@
     .benchmark-grid-line{stroke:rgba(255,255,255,.08);stroke-width:1}
     .benchmark-note{font-size:12px;color:var(--muted);line-height:1.45;margin-top:10px}
     @media(max-width:700px){.performance-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.benchmark-legend{grid-template-columns:1fr 1fr 1fr}}
-    @media(max-width:460px){.performance-grid{grid-template-columns:1fr 1fr}.performance-pair{grid-template-columns:1fr}.benchmark-legend{grid-template-columns:1fr}}
+    @media(max-width:460px){.performance-grid{grid-template-columns:1fr 1fr}.benchmark-legend{grid-template-columns:1fr}}
   `;
   document.head.appendChild(style);
 
@@ -63,7 +60,6 @@
       </div>
 
       <div id="performanceMetrics" class="performance-grid"></div>
-      <div id="performanceBestWorst" class="performance-pair"></div>
 
       <section class="panel">
         <div class="section-head"><div><h3>P/L Contribution</h3><div class="muted">Tracked realized + unrealized by asset</div></div></div>
@@ -72,7 +68,7 @@
 
       <section class="panel">
         <div class="benchmark-head">
-          <div><h3>Portfolio vs VOO / QQQ</h3><div class="muted">Indexed return comparison</div></div>
+          <div><h3>Portfolio vs VOO / QQQ</h3><div class="muted">Total return · common baseline</div></div>
           <button id="refreshPerformanceBtn" type="button" class="ghost-btn">Refresh</button>
         </div>
         <div id="benchmarkPeriods" class="benchmark-periods"></div>
@@ -131,14 +127,6 @@
       ].join('');
     }
 
-    const open=holdingsFor(currentPortfolioId).slice().sort((a,b)=>b.returnPct-a.returnPct);
-    const best=open[0]||null,worst=open.length?open[open.length-1]:null;
-    const bw=document.getElementById('performanceBestWorst');
-    if(bw){
-      const card=(label,h)=>h?`<div class="performance-holding-card"><div class="label">${label}</div><div class="symbol">${esc(h.symbol)}</div><div class="${h.unrealized<0?'negative':'positive'}">${signedMoney(convert(h.unrealized,h.currency))} · ${pct(h.returnPct)}</div></div>`:`<div class="performance-holding-card"><div class="label">${label}</div><div class="muted">No open holdings</div></div>`;
-      bw.innerHTML=card('Best Open Holding',best)+card('Worst Open Holding',worst);
-    }
-
     const positions=typeof positionsFor==='function'?positionsFor(currentPortfolioId):holdingsFor(currentPortfolioId);
     const rows=positions.map(p=>({p,pl:convert(Number(p.totalPL)||0,p.currency)})).sort((a,b)=>Math.abs(b.pl)-Math.abs(a.pl));
     const contributions=document.getElementById('performanceContributions');
@@ -153,12 +141,13 @@
   async function fetchBenchmarks(start,{force=false}={}){
     const key=start;
     const cached=benchmarkCache.get(key);
-    if(!force&&cached&&Date.now()-cached.time<15*60*1000)return cached.data;
+    if(!force&&cached&&Date.now()-cached.time<15*60*1000){benchmarkLastFetchedAt=cached.fetchedAt;return cached.data;}
     const res=await fetch(`${PERF_API}?symbols=VOO%2CQQQ&mode=history&start=${encodeURIComponent(start)}`);
     if(!res.ok)throw new Error(`Benchmark service returned ${res.status}`);
     const data=await res.json();
     const history=data.history||{};
-    benchmarkCache.set(key,{time:Date.now(),data:history});
+    benchmarkLastFetchedAt=new Date().toISOString();
+    benchmarkCache.set(key,{time:Date.now(),fetchedAt:benchmarkLastFetchedAt,data:history});
     return history;
   }
 
@@ -194,11 +183,38 @@
     return out;
   }
 
-  function benchmarkIndexed(points,baselineDate){
-    const clean=Array.isArray(points)?points.filter(p=>p&&p.date>=baselineDate&&Number(p.close)>0).map(p=>({date:p.date,close:Number(p.close)})):[];
-    if(!clean.length)return [];
-    const base=clean[0].close;
-    return clean.map(p=>({date:p.date,value:p.close/base*100}));
+  function cleanBenchmarkPoints(points){
+    let fallback=false;
+    const clean=Array.isArray(points)?points.filter(p=>p&&p.date).map(p=>{
+      const adjusted=Number(p.adjClose),close=Number(p.close);
+      const price=adjusted>0?adjusted:close;
+      if(!(adjusted>0)&&close>0)fallback=true;
+      return {date:p.date,price};
+    }).filter(p=>p.price>0).sort((a,b)=>a.date.localeCompare(b.date)):[];
+    return {points:clean,fallback};
+  }
+
+  function commonBaselineDate(portfolioSeries,vooPoints,qqqPoints){
+    if(!portfolioSeries.length||!vooPoints.length||!qqqPoints.length)return null;
+    let common=new Set(portfolioSeries.map(p=>p.date));
+    const vooDates=new Set(vooPoints.map(p=>p.date));
+    const qqqDates=new Set(qqqPoints.map(p=>p.date));
+    common=new Set([...common].filter(d=>vooDates.has(d)&&qqqDates.has(d)));
+    return [...common].sort()[0]||null;
+  }
+
+  function rebasePortfolio(points,baseline){
+    const basePoint=points.find(p=>p.date===baseline);
+    if(!basePoint||!(Number(basePoint.value)>0))return [];
+    const base=Number(basePoint.value);
+    return points.filter(p=>p.date>=baseline).map(p=>({date:p.date,value:Number(p.value)/base*100}));
+  }
+
+  function benchmarkIndexed(cleanPoints,baseline){
+    const basePoint=cleanPoints.find(p=>p.date===baseline);
+    if(!basePoint||!(Number(basePoint.price)>0))return [];
+    const base=Number(basePoint.price);
+    return cleanPoints.filter(p=>p.date>=baseline).map(p=>({date:p.date,value:Number(p.price)/base*100}));
   }
 
   function drawBenchmarkChart(lines){
@@ -223,7 +239,7 @@
       const pts=line.points.map(p=>`${x(p.date).toFixed(1)},${y(p.value).toFixed(1)}`).join(' ');
       return `<polyline points="${pts}" fill="none" stroke="${colors[i]}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>`;
     }).join('');
-    el.innerHTML=`<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="Portfolio versus VOO and QQQ indexed return">
+    el.innerHTML=`<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="Portfolio versus VOO and QQQ total return comparison">
       <line x1="${padX}" y1="${zeroY}" x2="${w-padX}" y2="${zeroY}" class="benchmark-grid-line"/>
       <line x1="${padX}" y1="${y(maxV)}" x2="${w-padX}" y2="${y(maxV)}" class="benchmark-grid-line"/>
       <line x1="${padX}" y1="${y(minV)}" x2="${w-padX}" y2="${y(minV)}" class="benchmark-grid-line"/>
@@ -245,13 +261,28 @@
     }).join('');
   }
 
+  function shortDate(date){
+    if(!date)return '—';
+    const d=new Date(`${date}T00:00:00`);
+    return Number.isNaN(d.getTime())?date:new Intl.DateTimeFormat('en-HK',{day:'numeric',month:'short',year:'numeric'}).format(d);
+  }
+
+  function ageText(iso){
+    if(!iso)return '—';
+    const d=new Date(iso);if(Number.isNaN(d.getTime()))return '—';
+    const min=Math.max(0,Math.floor((Date.now()-d.getTime())/60000));
+    if(min<1)return 'just now';
+    if(min<60)return `${min}m ago`;
+    return `${Math.floor(min/60)}h ago`;
+  }
+
   async function renderBenchmark({force=false}={}){
     ensurePerformanceTab();
     if(!currentPortfolioId)return;
     const portfolioId=currentPortfolioId;
     const chart=document.getElementById('benchmarkChart');
     const note=document.getElementById('benchmarkNote');
-    if(chart)chart.innerHTML='<div class="history-loading">Loading benchmark…</div>';
+    if(chart)chart.innerHTML='<div class="history-loading">Loading total-return benchmark…</div>';
     try{
       const start=periodStart(portfolioId,performancePeriod);
       const [{pairs,history},benchmarks]=await Promise.all([
@@ -260,26 +291,40 @@
       ]);
       if(currentPortfolioId!==portfolioId)return;
       const netSeries=buildPortfolioHistory(portfolioId,start,pairs,history);
-      const portfolioSeries=trackedReturnSeries(netSeries,portfolioId,start);
-      const baseline=portfolioSeries[0]?.date||start;
-      const voo=benchmarkIndexed(benchmarks.VOO,baseline);
-      const qqq=benchmarkIndexed(benchmarks.QQQ,baseline);
+      const rawPortfolio=trackedReturnSeries(netSeries,portfolioId,start);
+      const vooClean=cleanBenchmarkPoints(benchmarks.VOO);
+      const qqqClean=cleanBenchmarkPoints(benchmarks.QQQ);
+      const baseline=commonBaselineDate(rawPortfolio,vooClean.points,qqqClean.points);
+      if(!baseline){
+        if(chart)chart.innerHTML='<div class="empty">No common baseline date across Portfolio, VOO and QQQ for this period.</div>';
+        const legend=document.getElementById('benchmarkLegend');if(legend)legend.innerHTML='';
+        if(note)note.textContent='Benchmark comparison requires one shared trading date across all three series.';
+        return;
+      }
+
       const lines=[
-        {name:'Portfolio',points:portfolioSeries},
-        {name:'VOO',points:voo},
-        {name:'QQQ',points:qqq}
+        {name:'Portfolio',points:rebasePortfolio(rawPortfolio,baseline)},
+        {name:'VOO Total Return',points:benchmarkIndexed(vooClean.points,baseline)},
+        {name:'QQQ Total Return',points:benchmarkIndexed(qqqClean.points,baseline)}
       ];
       drawBenchmarkChart(lines);
       renderBenchmarkLegend(lines);
+
       const cashFlows=state.transactions.some(t=>t.accountId===portfolioId&&['Deposit','Withdrawal'].includes(t.type)&&(t.date||'')>=baseline);
       const hasOptions=state.assets.some(a=>a.accountId===portfolioId&&a.type==='option');
+      const fxInfo=typeof getLiveFxInfo==='function'?getLiveFxInfo():null;
+      const fxText=fxInfo?.updatedAt?'current live/saved FX':'reference FX';
       if(note){
         const parts=[
-          'Portfolio is a tracked-period, flow-adjusted proxy based on available dated transactions; it is not Lifetime TWR/XIRR because older contribution dates are unavailable.',
-          'VOO and QQQ use Yahoo Finance closing-price returns (dividends not reinvested).'
+          `Common baseline: ${shortDate(baseline)}.`,
+          'VOO / QQQ use Yahoo adjusted close as a dividend- and split-adjusted total-return proxy.',
+          'Portfolio is a tracked-period cash-flow-adjusted proxy; it is not formal Lifetime TWR/XIRR because older contribution dates are unavailable.',
+          `Historical FX uses ${fxText}.`,
+          `Benchmark updated ${ageText(benchmarkLastFetchedAt)}.`
         ];
         if(cashFlows)parts.push('Dated deposits/withdrawals in this period are adjusted in the portfolio return proxy.');
         if(hasOptions)parts.push('Historical option values remain approximate before the latest manual option price.');
+        if(vooClean.fallback||qqqClean.fallback)parts.push('Some adjusted-close points were unavailable and fell back to closing price.');
         note.textContent=parts.join(' ');
       }
     }catch(err){
