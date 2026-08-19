@@ -25,6 +25,18 @@ class handler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.end_headers()
 
+    @staticmethod
+    def _last_price(symbol):
+        ticker = yf.Ticker(symbol)
+        price = getattr(ticker.fast_info, "last_price", None)
+        if price is None:
+            hist = ticker.history(period="5d", interval="1d", auto_adjust=False)
+            if not hist.empty:
+                closes = hist["Close"].dropna()
+                if not closes.empty:
+                    price = float(closes.iloc[-1])
+        return float(price) if price is not None else None
+
     def do_GET(self):
         try:
             qs = parse_qs(urlparse(self.path).query)
@@ -70,6 +82,30 @@ class handler(BaseHTTPRequestHandler):
                 except Exception as exc:
                     return self._send_json(200, {"query": query, "results": [], "error": str(exc)})
 
+            if mode == "fx":
+                try:
+                    usd_hkd = self._last_price("HKD=X")
+                    usd_krw = self._last_price("KRW=X")
+                    if not usd_hkd or not usd_krw or usd_hkd <= 0 or usd_krw <= 0:
+                        raise ValueError("FX quote unavailable")
+                    rates_to_hkd = {
+                        "HKD": 1.0,
+                        "USD": float(usd_hkd),
+                        "KRW": float(usd_hkd / usd_krw),
+                    }
+                    return self._send_json(
+                        200,
+                        {
+                            "ratesToHKD": rates_to_hkd,
+                            "pairs": {"USDHKD": float(usd_hkd), "USDKRW": float(usd_krw)},
+                            "updatedAt": datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
+                            "source": "Yahoo Finance / yfinance",
+                        },
+                        "public, max-age=300, s-maxage=300",
+                    )
+                except Exception as exc:
+                    return self._send_json(503, {"error": str(exc)})
+
             raw = qs.get("symbols", [""])[0]
             symbols = [s.strip().upper() for s in raw.split(",") if s.strip()]
             symbols = list(dict.fromkeys(symbols))[:50]
@@ -94,11 +130,17 @@ class handler(BaseHTTPRequestHandler):
                         if not hist.empty:
                             for idx, row in hist.iterrows():
                                 close = row.get("Close")
+                                adj_close = row.get("Adj Close")
                                 if close is not None and close == close:
-                                    points.append({
+                                    point = {
                                         "date": idx.strftime("%Y-%m-%d"),
                                         "close": float(close),
-                                    })
+                                    }
+                                    if adj_close is not None and adj_close == adj_close:
+                                        point["adjClose"] = float(adj_close)
+                                    else:
+                                        point["adjClose"] = float(close)
+                                    points.append(point)
                         result[symbol] = points
                     except Exception as exc:
                         result[symbol] = {"error": str(exc), "points": []}
