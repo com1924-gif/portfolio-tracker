@@ -1,5 +1,5 @@
 (async()=>{
-  const files=['core-v2.js?v=2.22.3','ui-v2.js?v=2.22.3','allocation-all-v2.js?v=2.22.3','actions-v2.js?v=2.22.3','lifecycle-v2.js?v=2.22.3','holding-cost-v2.js?v=2.22.3','delete-guard-v2.js?v=2.22.3','ledger-v2.js?v=2.22.3','capital-v2.js?v=2.22.3','reorder-v2.js?v=2.22.3','swipe-nav-v2.js?v=2.22.3','sync-v2.js?v=2.22.3','sync-health-v2.js?v=2.22.3','live-fx-v2.js?v=2.22.3','prices-v2.js?v=2.22.3','history-v2.js?v=2.22.3','history-style-v2.js?v=2.22.3','performance-v2.js?v=2.22.3','performance-cleanup-v2.js?v=2.22.3','benchmark-live-refresh-v2.js?v=2.22.3','home-pl-percent-v2.js?v=2.22.3'];
+  const files=['core-v2.js?v=2.23','ui-v2.js?v=2.23','allocation-all-v2.js?v=2.23','actions-v2.js?v=2.23','lifecycle-v2.js?v=2.23','holding-cost-v2.js?v=2.23','delete-guard-v2.js?v=2.23','ledger-v2.js?v=2.23','capital-v2.js?v=2.23','reorder-v2.js?v=2.23','swipe-nav-v2.js?v=2.23','sync-v2.js?v=2.23','sync-health-v2.js?v=2.23','live-fx-v2.js?v=2.23','prices-v2.js?v=2.23','history-v2.js?v=2.23','history-style-v2.js?v=2.23','performance-v2.js?v=2.23','performance-cleanup-v2.js?v=2.23','benchmark-live-refresh-v2.js?v=2.23','home-pl-percent-v2.js?v=2.23','home-allocation-detail-v2.js?v=2.23'];
   for(const src of files){
     await new Promise((resolve,reject)=>{
       const s=document.createElement('script');
