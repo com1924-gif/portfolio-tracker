@@ -114,18 +114,26 @@ class handler(BaseHTTPRequestHandler):
                 try:
                     usd_hkd = self._last_price("HKD=X")
                     usd_krw = self._last_price("KRW=X")
-                    if not usd_hkd or not usd_krw or usd_hkd <= 0 or usd_krw <= 0:
+                    eur_usd = self._last_price("EURUSD=X")
+                    if not usd_hkd or not usd_krw or not eur_usd or usd_hkd <= 0 or usd_krw <= 0 or eur_usd <= 0:
                         raise ValueError("FX quote unavailable")
+                    eur_hkd = float(eur_usd * usd_hkd)
                     rates_to_hkd = {
                         "HKD": 1.0,
                         "USD": float(usd_hkd),
                         "KRW": float(usd_hkd / usd_krw),
+                        "EUR": eur_hkd,
                     }
                     return self._send_json(
                         200,
                         {
                             "ratesToHKD": rates_to_hkd,
-                            "pairs": {"USDHKD": float(usd_hkd), "USDKRW": float(usd_krw)},
+                            "pairs": {
+                                "USDHKD": float(usd_hkd),
+                                "USDKRW": float(usd_krw),
+                                "EURUSD": float(eur_usd),
+                                "EURHKD": eur_hkd,
+                            },
                             "updatedAt": datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
                             "source": "Yahoo Finance / yfinance",
                         },
