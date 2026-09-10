@@ -21,13 +21,13 @@
   }
 
   function validRates(rates){
-    return !!rates&&Number(rates.HKD)===1&&Number(rates.USD)>0&&Number(rates.KRW)>0;
+    return !!rates&&Number(rates.HKD)===1&&Number(rates.USD)>0&&Number(rates.KRW)>0&&Number(rates.EUR)>0;
   }
 
   function activeRates(){
     const cached=readCache();
     if(validRates(cached?.ratesToHKD))return cached.ratesToHKD;
-    return state?.settings?.fx||{HKD:1,USD:7.80,KRW:0.0056};
+    return state?.settings?.fx||{HKD:1,USD:7.80,KRW:0.0056,EUR:9.10};
   }
 
   function liveFxToHKD(currency){
@@ -65,14 +65,20 @@
       const cls=mode==='Live FX'?'fx-live-ok':'fx-live-stale';
       const usdHkd=Number(cached.pairs?.USDHKD);
       const usdKrw=Number(cached.pairs?.USDKRW);
-      const pairText=(usdHkd>0&&usdKrw>0)?` · USD/HKD ${usdHkd.toFixed(4)} · USD/KRW ${usdKrw.toLocaleString('en-HK',{maximumFractionDigits:2})}`:'';
+      const eurHkd=Number(cached.pairs?.EURHKD);
+      const parts=[];
+      if(usdHkd>0)parts.push(`USD/HKD ${usdHkd.toFixed(4)}`);
+      if(usdKrw>0)parts.push(`USD/KRW ${usdKrw.toLocaleString('en-HK',{maximumFractionDigits:2})}`);
+      if(eurHkd>0)parts.push(`EUR/HKD ${eurHkd.toFixed(4)}`);
+      const pairText=parts.length?` · ${parts.join(' · ')}`:'';
       return {html:`<strong class="${cls}">${mode}</strong>${pairText} · updated ${ageText(cached.updatedAt||cached.fetchedAt)}`};
     }
     const ref=state?.settings?.fx||{};
     const usd=Number(ref.USD)||7.80;
     const krw=Number(ref.KRW)||0.0056;
+    const eur=Number(ref.EUR)||9.10;
     const usdKrw=krw>0?usd/krw:null;
-    return {html:`<strong class="fx-live-stale">Reference FX</strong> · USD/HKD ${usd.toFixed(4)}${usdKrw?` · USD/KRW ${usdKrw.toLocaleString('en-HK',{maximumFractionDigits:2})}`:''} · live quote unavailable`};
+    return {html:`<strong class="fx-live-stale">Reference FX</strong> · USD/HKD ${usd.toFixed(4)}${usdKrw?` · USD/KRW ${usdKrw.toLocaleString('en-HK',{maximumFractionDigits:2})}`:''} · EUR/HKD ${eur.toFixed(4)} · live quote unavailable`};
   }
 
   function ensureLine(card,id){
