@@ -34,7 +34,7 @@
     const pctValue=cashPercent(summary);
     const label=summary.cash<0?'Margin':'Cash';
     const cls=summary.cash<0?'negative':'positive';
-    const rows=['HKD','USD','KRW'].map(currency=>{
+    const rows=['HKD','USD','EUR','KRW'].map(currency=>{
       const value=Number(balances[currency])||0;
       return `<div class="home-holding-detail-cell">
         <span class="home-holding-detail-label">${currency} Balance</span>
