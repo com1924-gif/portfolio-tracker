@@ -10,6 +10,7 @@ function canonicalStockTicker(ticker,currency){
   if(raw.includes('.'))return raw;
   if(currency==='HKD'&&/^\d{1,5}$/.test(raw))return raw.padStart(4,'0')+'.HK';
   if(currency==='KRW'&&/^\d{6}$/.test(raw))return raw+'.KS';
+  if(currency==='EUR'&&raw==='ADYEN')return 'ADYEN.AS';
   return raw;
 }
 
