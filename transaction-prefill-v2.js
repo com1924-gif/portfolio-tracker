@@ -67,7 +67,9 @@
     value('txCurrency',currency);
     value('txQty',qty);
     value('txPrice',price);
-    if(currentPrice!=null)value('txCurrentPrice',currentPrice);
+    value('txCurrentPrice',currentPrice!=null?currentPrice:price);
+    const currentPriceInput=document.getElementById('txCurrentPrice');
+    if(currentPriceInput)currentPriceInput.dataset.autoDefault=currentPrice!=null?'0':'1';
     value('txFee',fee==null?0:fee);
     if(date)value('txDate',date);
 
