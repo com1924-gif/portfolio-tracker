@@ -8,6 +8,7 @@ function yahooSymbolForAsset(asset){
   if(asset.currency==='HKD' && /^\d{1,5}$/.test(raw)) return raw.padStart(4,'0')+'.HK';
   if(asset.currency==='KRW' && /^\d{6}$/.test(raw)) return raw+'.KS';
   if(asset.currency==='EUR' && raw==='ADYEN') return 'ADYEN.AS';
+  if(asset.currency==='EUR' && raw==='BESI') return 'BESI.AS';
   return raw;
 }
 
