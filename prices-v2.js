@@ -72,21 +72,5 @@ function installPriceRefreshButtons(){
   }
 }
 
-function loadUiEnhancements(){
-  if(document.querySelector('script[data-portfolio-delete-v210]'))return;
-  const del=document.createElement('script');
-  del.src='portfolio-delete-v2.js?v=2.10';
-  del.dataset.portfolioDeleteV210='1';
-  del.onload=()=>{
-    if(document.querySelector('script[data-layout-v210]'))return;
-    const layout=document.createElement('script');
-    layout.src='layout-v2.js?v=2.10';
-    layout.dataset.layoutV210='1';
-    document.body.appendChild(layout);
-  };
-  document.body.appendChild(del);
-}
-
 installPriceRefreshButtons();
-loadUiEnhancements();
 setTimeout(()=>refreshStockPrices({silent:true}),300);
