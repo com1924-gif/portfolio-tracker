@@ -85,6 +85,18 @@ function syncHKLotFields(){
   }
 }
 
+function syncCurrentPriceDefault({force=false}={}){
+  const trading=['Buy','Sell'].includes($('txType').value);
+  const stock=trading&&$('txAssetType').value==='stock';
+  const current=$('txCurrentPrice');
+  if(!current||!stock)return;
+  const price=Number($('txPrice').value);
+  if((force||current.dataset.autoDefault==='1'||current.value==='')&&Number.isFinite(price)&&price>=0){
+    current.value=String(price);
+    current.dataset.autoDefault='1';
+  }
+}
+
 function updateTxForm(){
   const type=$('txType').value;const trading=['Buy','Sell'].includes(type);const dividend=type==='Dividend';
   $('assetTypeLabel').classList.toggle('hidden',!trading);
@@ -95,9 +107,16 @@ function updateTxForm(){
   $('optionTxFields').classList.toggle('hidden',!(trading&&$('txAssetType').value==='option'));
   $('priceLabel').firstChild.textContent=trading?'Price':'Amount';
   syncHKLotFields();
+  syncCurrentPriceDefault();
 }
 $('txType').addEventListener('change',updateTxForm);
-$('txAssetType').addEventListener('change',()=>{updateTxForm();scheduleCompanyLookup();});
+$('txAssetType').addEventListener('change',()=>{
+  const current=$('txCurrentPrice');
+  if(current&&$('txAssetType').value==='stock')current.dataset.autoDefault='1';
+  updateTxForm();scheduleCompanyLookup();
+});
+$('txPrice').addEventListener('input',()=>syncCurrentPriceDefault());
+$('txCurrentPrice').addEventListener('input',()=>{$('txCurrentPrice').dataset.autoDefault='0';});
 $('txTicker').addEventListener('input',()=>{
   if(!editingTransactionId)$('txLotSize').value='';
   updateTxForm();scheduleCompanyLookup();
@@ -117,7 +136,7 @@ function resetTransactionForm(){
   populatePortfolioSelects();if(currentPortfolioId)$('txPortfolio').value=currentPortfolioId;
   $('txType').value='Buy';$('txAssetType').value='stock';$('txTicker').value='';$('txName').value='';
   $('txCurrency').value='USD';$('txQtyMode').value='lots';$('txLotSize').value='';
-  $('txQty').value='1';$('txPrice').value='0';$('txCurrentPrice').value='';$('txFee').value='0';
+  $('txQty').value='1';$('txPrice').value='0';$('txCurrentPrice').value='0';$('txCurrentPrice').dataset.autoDefault='1';$('txFee').value='0';
   $('txDate').value=today();$('txMultiplier').value='100';$('txOptionType').value='Call';$('txStrike').value='';$('txExpiry').value='';
   setTransactionModalMode(false);updateTxForm();
 }
@@ -140,7 +159,7 @@ window.openEditTransaction=id=>{
   $('txDate').value=t.date||today();
   $('txFee').value=Number(t.fee)||0;
   $('txPrice').value=t.amount!=null?Number(t.amount):(Number(t.price)||0);
-  $('txCurrentPrice').value=a?.price??'';
+  $('txCurrentPrice').value=a?.price??'';$('txCurrentPrice').dataset.autoDefault='0';
   $('txAssetType').value=a?.type||'stock';
   $('txTicker').value=a?(a.type==='option'?(a.underlying||a.symbol.split(' ')[0]):a.symbol):'';
   $('txName').value=a?.name||'';
