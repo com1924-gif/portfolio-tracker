@@ -161,7 +161,7 @@
       </div>
       <label id="qtyLabel">Quantity<input id="txQty" type="number" step="0.0001" value="1" /></label>
       <label id="priceLabel">Price<input id="txPrice" type="number" step="0.0001" value="0" /></label>
-      <label id="currentPriceLabel">Current Price <span class="muted">optional; defaults to trade price</span><input id="txCurrentPrice" type="number" step="0.0001" /></label>
+      <label id="currentPriceLabel">Current Price <span class="muted">defaults to trade price; stocks refresh automatically</span><input id="txCurrentPrice" type="number" step="0.0001" /></label>
       <label>Fee<input id="txFee" type="number" step="0.01" value="0" /></label>
       <label>Date<input id="txDate" type="date" /></label>
       <button type="button" id="saveTransactionBtn" class="primary-btn full">Save Transaction</button>
@@ -198,6 +198,6 @@
   </div></div>
 
   <div id="toast" class="toast hidden"></div>
-  <script src="app.js?v=2.25.2"></script>
+  <script src="app.js?v=2.25.3"></script>
 </body>
 </html>
