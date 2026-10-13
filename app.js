@@ -1,26 +1,26 @@
 (async()=>{
   window.__PORTFOLIO_APP_VERSION='2.25';
   const files=[
-    'core-v2.js?v=2.25',
-    'ui-v2.js?v=2.25',
-    'actions-v2.js?v=2.25',
-    'lifecycle-v2.js?v=2.25',
-    'holding-cost-v2.js?v=2.25',
-    'delete-guard-v2.js?v=2.25',
-    'ledger-v2.js?v=2.25',
-    'capital-v2.js?v=2.25',
-    'currency-eur-v2.js?v=2.25',
-    'reorder-v2.js?v=2.25',
-    'swipe-nav-v2.js?v=2.25',
-    'sync-v225.js?v=2.25',
-    'live-fx-v2.js?v=2.25',
-    'prices-v2.js?v=2.25',
-    'layout-v225.js?v=2.25',
-    'history-v2.js?v=2.25',
-    'history-style-v2.js?v=2.25',
-    'performance-v225.js?v=2.25',
-    'home-v225.js?v=2.25',
-    'option-close-v2.js?v=2.25'
+    'core-v2.js?v=2.25.1',
+    'ui-v2.js?v=2.25.1',
+    'actions-v2.js?v=2.25.1',
+    'lifecycle-v2.js?v=2.25.1',
+    'holding-cost-v2.js?v=2.25.1',
+    'delete-guard-v2.js?v=2.25.1',
+    'ledger-v2.js?v=2.25.1',
+    'capital-v2.js?v=2.25.1',
+    'currency-eur-v2.js?v=2.25.1',
+    'reorder-v2.js?v=2.25.1',
+    'swipe-nav-v2.js?v=2.25.1',
+    'sync-v225.js?v=2.25.1',
+    'live-fx-v2.js?v=2.25.1',
+    'prices-v2.js?v=2.25.1',
+    'layout-v225.js?v=2.25.1',
+    'history-v2.js?v=2.25.1',
+    'history-style-v2.js?v=2.25.1',
+    'performance-v225.js?v=2.25.1',
+    'home-v225.js?v=2.25.1',
+    'option-close-v2.js?v=2.25.1'
   ];
 
   for(const src of files){
