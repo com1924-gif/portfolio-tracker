@@ -1,26 +1,27 @@
 (async()=>{
   window.__PORTFOLIO_APP_VERSION='2.25';
   const files=[
-    'core-v2.js?v=2.25.1',
-    'ui-v2.js?v=2.25.1',
-    'actions-v2.js?v=2.25.1',
-    'lifecycle-v2.js?v=2.25.1',
-    'holding-cost-v2.js?v=2.25.1',
-    'delete-guard-v2.js?v=2.25.1',
-    'ledger-v2.js?v=2.25.1',
-    'capital-v2.js?v=2.25.1',
-    'currency-eur-v2.js?v=2.25.1',
-    'reorder-v2.js?v=2.25.1',
-    'swipe-nav-v2.js?v=2.25.1',
-    'sync-v225.js?v=2.25.1',
-    'live-fx-v2.js?v=2.25.1',
-    'prices-v2.js?v=2.25.1',
-    'layout-v225.js?v=2.25.1',
-    'history-v2.js?v=2.25.1',
-    'history-style-v2.js?v=2.25.1',
-    'performance-v225.js?v=2.25.1',
-    'home-v225.js?v=2.25.1',
-    'option-close-v2.js?v=2.25.1'
+    'core-v2.js?v=2.25.2',
+    'ui-v2.js?v=2.25.2',
+    'actions-v2.js?v=2.25.2',
+    'lifecycle-v2.js?v=2.25.2',
+    'holding-cost-v2.js?v=2.25.2',
+    'delete-guard-v2.js?v=2.25.2',
+    'ledger-v2.js?v=2.25.2',
+    'capital-v2.js?v=2.25.2',
+    'currency-eur-v2.js?v=2.25.2',
+    'reorder-v2.js?v=2.25.2',
+    'swipe-nav-v2.js?v=2.25.2',
+    'sync-v225.js?v=2.25.2',
+    'live-fx-v2.js?v=2.25.2',
+    'prices-v2.js?v=2.25.2',
+    'layout-v225.js?v=2.25.2',
+    'history-v2.js?v=2.25.2',
+    'history-style-v2.js?v=2.25.2',
+    'performance-v225.js?v=2.25.2',
+    'home-v225.js?v=2.25.2',
+    'option-close-v2.js?v=2.25.2',
+    'transaction-prefill-v2.js?v=2.25.2'
   ];
 
   for(const src of files){
@@ -42,6 +43,7 @@
   }
 
   if(typeof renderAll==='function')renderAll();
+  if(typeof window.applyTransactionPrefillFromUrl==='function')await window.applyTransactionPrefillFromUrl();
 
   await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
   document.body.classList.remove('app-booting');
