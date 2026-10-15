@@ -90,6 +90,7 @@ function syncCurrentPriceDefault({force=false}={}){
   const stock=trading&&$('txAssetType').value==='stock';
   const current=$('txCurrentPrice');
   if(!current||!stock)return;
+  if(current.dataset.suppressAutoDefault==='1')return;
   const price=Number($('txPrice').value);
   if((force||current.dataset.autoDefault==='1'||current.value==='')&&Number.isFinite(price)&&price>=0){
     current.value=String(price);
@@ -136,7 +137,7 @@ function resetTransactionForm(){
   populatePortfolioSelects();if(currentPortfolioId)$('txPortfolio').value=currentPortfolioId;
   $('txType').value='Buy';$('txAssetType').value='stock';$('txTicker').value='';$('txName').value='';
   $('txCurrency').value='USD';$('txQtyMode').value='lots';$('txLotSize').value='';
-  $('txQty').value='1';$('txPrice').value='0';$('txCurrentPrice').value='0';$('txCurrentPrice').dataset.autoDefault='1';$('txFee').value='0';
+  $('txQty').value='1';$('txPrice').value='0';$('txCurrentPrice').value='0';delete $('txCurrentPrice').dataset.suppressAutoDefault;$('txCurrentPrice').dataset.autoDefault='1';$('txFee').value='0';
   $('txDate').value=today();$('txMultiplier').value='100';$('txOptionType').value='Call';$('txStrike').value='';$('txExpiry').value='';
   setTransactionModalMode(false);updateTxForm();
 }
