@@ -1,6 +1,6 @@
 (()=>{
-  if(window.__portfolioTransactionPrefillInstalledV2252)return;
-  window.__portfolioTransactionPrefillInstalledV2252=true;
+  if(window.__portfolioTransactionPrefillInstalledV2255)return;
+  window.__portfolioTransactionPrefillInstalledV2255=true;
 
   const ALLOWED_TYPES=new Set(['Buy','Sell']);
   const ALLOWED_ASSET_TYPES=new Set(['stock','option']);
@@ -38,7 +38,6 @@
     const currency=ALLOWED_CURRENCIES.has(params.get('currency'))?params.get('currency'):'USD';
     const qty=numberParam(params,'qty',{min:0});
     const price=numberParam(params,'price',{min:0});
-    const currentPrice=numberParam(params,'currentPrice',{min:0});
     const fee=numberParam(params,'fee',{min:0});
     const date=params.get('date')||'';
 
@@ -67,9 +66,12 @@
     value('txCurrency',currency);
     value('txQty',qty);
     value('txPrice',price);
-    value('txCurrentPrice',currentPrice!=null?currentPrice:price);
     const currentPriceInput=document.getElementById('txCurrentPrice');
-    if(currentPriceInput)currentPriceInput.dataset.autoDefault=currentPrice!=null?'0':'1';
+    if(currentPriceInput){
+      currentPriceInput.value='';
+      currentPriceInput.dataset.autoDefault='0';
+      currentPriceInput.dataset.suppressAutoDefault='1';
+    }
     value('txFee',fee==null?0:fee);
     if(date)value('txDate',date);
 
@@ -92,7 +94,7 @@
       const note=document.createElement('div');
       note.id='transactionPrefillNote';
       note.style.cssText='font-size:11px;line-height:1.45;color:var(--muted);background:#151519;border:1px solid var(--line);border-radius:12px;padding:10px 12px;';
-      note.textContent='Prefilled from a secure link. Review the execution price, quantity, date and broker fee before saving.';
+      note.textContent='Prefilled from a secure link. Current Price is intentionally left blank; stock quotes refresh automatically. Review the execution price, quantity, date and broker fee before saving.';
       saveBtn?.before(note);
     }
 
