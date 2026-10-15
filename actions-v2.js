@@ -104,7 +104,6 @@ function updateTxForm(){
   $('tickerLabel').classList.toggle('hidden',!(trading||dividend));
   $('nameLabel').classList.toggle('hidden',!trading);
   $('qtyLabel').classList.toggle('hidden',!trading);
-  $('currentPriceLabel').classList.toggle('hidden',!trading);
   $('optionTxFields').classList.toggle('hidden',!(trading&&$('txAssetType').value==='option'));
   $('priceLabel').firstChild.textContent=trading?'Price':'Amount';
   syncHKLotFields();
