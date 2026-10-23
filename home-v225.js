@@ -404,28 +404,8 @@
 
   function updateAverageCostCurrency(){
     const symbol=selectedSymbol();
-    if(!symbol)return;
+    if(!symbol||typeof holdingsFor!=='function')return;
 
-    const cells=[...document.querySelectorAll('#homeAllocationDetail .home-holding-detail-cell')];
-    const cell=cells.find(el=>el.querySelector('.home-holding-detail-label')?.textContent?.trim()==='Average Cost');
-    if(!cell)return;
-    const value=cell.querySelector('.home-holding-detail-value');
-    const sub=cell.querySelector('.home-holding-detail-sub');
-
-    if(typeof summaryFor==='function'){
-      const strategy=(summaryFor().hs||[]).find(h=>h.isStrategy&&String(h.symbol||'').trim()===symbol);
-      if(strategy){
-        const currency=strategy.currency||displayCurrency;
-        const avgCost=Number(strategy.avgCost);
-        if(Number.isFinite(avgCost)){
-          if(value)value.textContent=money(avgCost,currency);
-          if(sub)sub.textContent=currency;
-          return;
-        }
-      }
-    }
-
-    if(typeof holdingsFor!=='function')return;
     const matches=holdingsFor().filter(h=>normalizeTicker(h.symbol)===normalizeTicker(symbol));
     if(!matches.length)return;
 
@@ -439,6 +419,12 @@
     if(!(units>0))return;
 
     const avgCost=nativeCost/units;
+    const cells=[...document.querySelectorAll('#homeAllocationDetail .home-holding-detail-cell')];
+    const cell=cells.find(el=>el.querySelector('.home-holding-detail-label')?.textContent?.trim()==='Average Cost');
+    if(!cell)return;
+
+    const value=cell.querySelector('.home-holding-detail-value');
+    const sub=cell.querySelector('.home-holding-detail-sub');
     if(value)value.textContent=money(avgCost,currency);
     if(sub)sub.textContent=currency;
   }
