@@ -1,29 +1,29 @@
 (async()=>{
-  window.__PORTFOLIO_APP_VERSION='2.25.9';
+  window.__PORTFOLIO_APP_VERSION='2.25.10';
   const files=[
-    'core-v2.js?v=2.25.9',
-    'ui-v2.js?v=2.25.9',
-    'actions-v2.js?v=2.25.9',
-    'lifecycle-v2.js?v=2.25.9',
-    'holding-cost-v2.js?v=2.25.9',
-    'delete-guard-v2.js?v=2.25.9',
-    'ledger-v2.js?v=2.25.9',
-    'capital-v2.js?v=2.25.9',
-    'currency-eur-v2.js?v=2.25.9',
-    'reorder-v2.js?v=2.25.9',
-    'swipe-nav-v2.js?v=2.25.9',
-    'sync-v225.js?v=2.25.9',
-    'live-fx-v2.js?v=2.25.9',
-    'prices-v2.js?v=2.25.9',
-    'layout-v225.js?v=2.25.9',
-    'history-v2.js?v=2.25.9',
-    'history-style-v2.js?v=2.25.9',
-    'performance-v225.js?v=2.25.9',
-    'home-v225.js?v=2.25.9',
-    'privacy-toggle-v2.js?v=2.25.9',
-    'option-close-v2.js?v=2.25.9',
-    'option-combo-v2.js?v=2.25.9',
-    'transaction-prefill-v2.js?v=2.25.9'
+    'core-v2.js?v=2.25.10',
+    'ui-v2.js?v=2.25.10',
+    'actions-v2.js?v=2.25.10',
+    'lifecycle-v2.js?v=2.25.10',
+    'holding-cost-v2.js?v=2.25.10',
+    'delete-guard-v2.js?v=2.25.10',
+    'ledger-v2.js?v=2.25.10',
+    'capital-v2.js?v=2.25.10',
+    'currency-eur-v2.js?v=2.25.10',
+    'reorder-v2.js?v=2.25.10',
+    'swipe-nav-v2.js?v=2.25.10',
+    'sync-v225.js?v=2.25.10',
+    'live-fx-v2.js?v=2.25.10',
+    'prices-v2.js?v=2.25.10',
+    'layout-v225.js?v=2.25.10',
+    'history-v2.js?v=2.25.10',
+    'history-style-v2.js?v=2.25.10',
+    'performance-v225.js?v=2.25.10',
+    'home-v225.js?v=2.25.10',
+    'privacy-toggle-v2.js?v=2.25.10',
+    'option-close-v2.js?v=2.25.10',
+    'option-combo-v2.js?v=2.25.10',
+    'transaction-prefill-v2.js?v=2.25.10'
   ];
 
   for(const src of files){
@@ -45,6 +45,7 @@
   }
 
   if(typeof renderAll==='function')renderAll();
+  if(typeof window.applyOptionComboPrefillFromUrl==='function')await window.applyOptionComboPrefillFromUrl();
   if(typeof window.applyTransactionPrefillFromUrl==='function')await window.applyTransactionPrefillFromUrl();
 
   await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
