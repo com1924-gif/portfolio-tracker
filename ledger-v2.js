@@ -44,12 +44,24 @@
   }
 
   function findOptionFromForm(accountId,ticker){
-    return findAsset({
+    const optionType=document.getElementById('txOptionType').value;
+    const strike=Number(document.getElementById('txStrike').value);
+    const expiry=document.getElementById('txExpiry').value;
+    const exact=findAsset({
       accountId,type:'option',ticker:normalizeTicker(ticker),
-      optionType:document.getElementById('txOptionType').value,
-      strike:Number(document.getElementById('txStrike').value),
-      expiry:document.getElementById('txExpiry').value
+      optionType,strike,expiry
     });
+    if(exact)return exact;
+
+    const targetId=txModal?.dataset.prefillTargetAssetId;
+    if(!targetId)return null;
+    const target=state.assets.find(a=>a.id===targetId&&a.accountId===accountId&&a.type==='option');
+    if(!target)return null;
+    const underlying=normalizeTicker(target.underlying||String(target.symbol||'').split(' ')[0]);
+    return underlying===normalizeTicker(ticker)
+      &&target.optionType===optionType
+      &&Number(target.strike)===strike
+      ?target:null;
   }
 
   function formTradeQty(assetType,currency,asset){
