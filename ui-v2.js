@@ -69,7 +69,7 @@ function renderHoldingRows(target,hs,net,clickable){
     return `<div class="holding-row" ${clickable?`onclick="openHoldingDetail('${h.id}')"`:''}>
       <div>
         <div class="holding-name">${esc(h.symbol)}</div>
-        <div class="holding-sub">${h.type==='option'?`${h.qty} contracts · ${esc(h.name)}`:`${h.qty} shares · ${esc(h.name)}`}</div>
+        <div class="holding-sub">${h.type==='option'?`${h.isShort||h.positionSide==='short'?'Short ':''}${h.qty} contracts · ${esc(h.name)}`:`${h.qty} shares · ${esc(h.name)}`}</div>
       </div>
       <div class="right">
         <div class="holding-price">${money(h.price,h.currency)}</div>
@@ -99,7 +99,10 @@ function renderTransactionRows(){
   $('portfolioTransactions').innerHTML=txs.length?txs.map(t=>{
     const a=state.assets.find(x=>x.id===t.assetId);
     const amt=t.amount!=null?Number(t.amount):((Number(t.qty)||0)*(Number(t.price)||0)*multiplier(a));
-    return `<div class="tx-row"><div><div class="tx-title">${esc(t.type)}${a?' · '+esc(a.symbol):''}</div><div class="tx-sub">${esc(t.date)}${t.qty?` · ${formatTransactionQuantity(t,a)} @ ${money(t.price,t.currency)}`:''}</div></div><div class="tx-actions"><div class="right">${money(amt,t.currency)}</div><button class="edit-btn" type="button" onclick="openEditTransaction('${t.id}')">Edit</button><button class="delete-btn" type="button" onclick="deleteTransaction('${t.id}')">Delete</button></div></div>`;
+    const shortOption=a?.type==='option'&&a?.positionSide==='short';
+    const typeLabel=shortOption?(t.type==='Sell'?'Sell to Open':t.type==='Buy'?'Buy to Close':t.type):t.type;
+    const editButton=shortOption?'':`<button class="edit-btn" type="button" onclick="openEditTransaction('${t.id}')">Edit</button>`;
+    return `<div class="tx-row"><div><div class="tx-title">${esc(typeLabel)}${a?' · '+esc(a.symbol):''}</div><div class="tx-sub">${esc(t.date)}${t.qty?` · ${formatTransactionQuantity(t,a)} @ ${money(t.price,t.currency)}`:''}</div></div><div class="tx-actions"><div class="right">${money(amt,t.currency)}</div>${editButton}<button class="delete-btn" type="button" onclick="deleteTransaction('${t.id}')">Delete</button></div></div>`;
   }).join(''):'<div class="empty">No transactions yet.</div>';
 }
 
