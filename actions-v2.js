@@ -28,6 +28,19 @@ function findStockAssetFlexible(accountId,ticker,currency){
   ));
 }
 
+function findPrefilledOptionTarget(accountId,ticker,optionType,strike){
+  const modal=document.getElementById('transactionModal');
+  const id=modal?.dataset.prefillTargetAssetId;
+  if(!id)return null;
+  const a=state.assets.find(x=>x.id===id);
+  if(!a||a.accountId!==accountId||a.type!=='option')return null;
+  const underlying=normalizeTicker(a.underlying||String(a.symbol||'').split(' ')[0]);
+  return underlying===normalizeTicker(ticker)
+    &&a.optionType===optionType
+    &&Number(a.strike)===Number(strike)
+    ?a:null;
+}
+
 function companyLookupTicker(){
   return canonicalStockTicker($('txTicker').value,$('txCurrency').value);
 }
@@ -143,6 +156,8 @@ function resetTransactionForm(){
 
 window.openTransactionModal=()=>{
   editingTransactionId=null;
+  const modal=document.getElementById('transactionModal');
+  if(modal)delete modal.dataset.prefillTargetAssetId;
   resetTransactionForm();
   openModal('transactionModal');
 };
@@ -197,7 +212,8 @@ $('saveTransactionBtn').addEventListener('click',()=>{
 
       let a=assetType==='stock'
         ?findStockAssetFlexible(accountId,ticker,currency)
-        :findAsset({accountId,type:assetType,ticker,optionType,strike,expiry});
+        :(findAsset({accountId,type:assetType,ticker,optionType,strike,expiry})
+          ||findPrefilledOptionTarget(accountId,ticker,optionType,strike));
 
       const price=Number($('txPrice').value),enteredQty=Number($('txQty').value),fee=Number($('txFee').value)||0,currentPrice=Number($('txCurrentPrice').value);
       if((type==='Sell'||dividend)&&!a)return toast('This holding does not exist in the selected portfolio.',true);
@@ -219,7 +235,17 @@ $('saveTransactionBtn').addEventListener('click',()=>{
       a.currency=currency;
       if(trading&&$('txName').value.trim())a.name=$('txName').value.trim();
       if(Number.isFinite(currentPrice)&&currentPrice>0)a.price=currentPrice;
-      if(a.type==='option')a.multiplier=Number($('txMultiplier').value)||100;
+      if(a.type==='option'){
+        a.multiplier=Number($('txMultiplier').value)||100;
+        const modal=document.getElementById('transactionModal');
+        if(type==='Sell'&&modal?.dataset.prefillTargetAssetId===a.id){
+          a.underlying=normalizeTicker(ticker);
+          a.optionType=optionType;
+          a.strike=strike;
+          a.expiry=expiry;
+          a.symbol=optionSymbol(ticker,optionType,strike,expiry);
+        }
+      }
       if(a.type==='stock'&&currency==='HKD'&&Number.isFinite(lotSize)&&lotSize>0)a.lotSize=lotSize;
 
       payload={
@@ -240,6 +266,8 @@ $('saveTransactionBtn').addEventListener('click',()=>{
     }
     const wasEditing=!!existing;
     editingTransactionId=null;
+    const modal=document.getElementById('transactionModal');
+    if(modal)delete modal.dataset.prefillTargetAssetId;
     save();closeModal('transactionModal');currentPortfolioId=accountId;renderAll();showPortfolioTab('transactions');toast(wasEditing?'Transaction updated.':'Transaction saved.');
   }catch(e){console.error(e);toast(`Could not save transaction: ${e.message}`,true);}
 });
