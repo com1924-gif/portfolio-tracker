@@ -53,6 +53,20 @@
     });
     if(exact)return exact;
 
+    const requestedQty=Math.max(0,Number(document.getElementById('txQty').value)||0);
+    const open=typeof positionsFor==='function'?positionsFor(accountId):[];
+    const candidates=open.filter(p=>{
+      if(p.type!=='option'||!(Number(p.qty)>0))return false;
+      if(requestedQty&&Number(p.qty)+EPS<requestedQty)return false;
+      const underlying=normalizeTicker(p.underlying||String(p.symbol||'').split(' ')[0]);
+      return underlying===normalizeTicker(ticker)
+        &&p.optionType===optionType
+        &&Number(p.strike)===strike;
+    });
+    if(candidates.length===1){
+      return state.assets.find(a=>a.id===candidates[0].id)||null;
+    }
+
     const targetId=txModal?.dataset.prefillTargetAssetId;
     if(!targetId)return null;
     const target=state.assets.find(a=>a.id===targetId&&a.accountId===accountId&&a.type==='option');
