@@ -1,6 +1,6 @@
 (()=>{
-  if(window.__portfolioOptionComboInstalledV2259)return;
-  window.__portfolioOptionComboInstalledV2259=true;
+  if(window.__portfolioOptionComboInstalledV22510)return;
+  window.__portfolioOptionComboInstalledV22510=true;
 
   const EPS=1e-9;
 
@@ -254,6 +254,64 @@
       toast(`Could not record call combo: ${err.message}`,true);
     }
   }
+
+  async function applyOptionComboPrefillFromUrl(){
+    const params=new URLSearchParams(window.location.search);
+    if(params.get('prefill')!=='optionCombo')return false;
+
+    inject();
+    fillPortfolios();
+
+    const portfolioRef=(params.get('portfolio')||'').trim();
+    const portfolio=state.accounts.find(a=>
+      a.id===portfolioRef||
+      String(a.name||'').trim().toLowerCase()===portfolioRef.toLowerCase()
+    );
+    if(!portfolio){
+      toast(`Portfolio "${portfolioRef||'unknown'}" was not found on this device.`,true);
+      return false;
+    }
+
+    const set=(id,v)=>{const el=document.getElementById(id);if(el&&v!=null&&v!=='')el.value=String(v);};
+    set('comboPortfolio',portfolio.id);
+    set('comboTicker',normalizeTicker(params.get('ticker')));
+    set('comboName',params.get('name')||'');
+    set('comboCurrency',params.get('currency')||'USD');
+    set('comboQty',params.get('qty')||1);
+    set('comboExpiry',params.get('expiry')||'');
+    set('comboDate',params.get('date')||(typeof today==='function'?today():new Date().toISOString().slice(0,10)));
+    set('comboBuyStrike',params.get('buyStrike')||'');
+    set('comboBuyPrice',params.get('buyPrice')||'');
+    set('comboBuyFee',params.get('buyFee')||0);
+    set('comboSellPrice',params.get('sellPrice')||'');
+    set('comboSellFee',params.get('sellFee')||0);
+    document.getElementById('comboAlignExpiry').checked=params.get('alignExpiry')!=='0';
+
+    refreshSellChoices();
+    const sellStrike=Number(params.get('sellStrike'));
+    if(Number.isFinite(sellStrike)){
+      const sel=document.getElementById('comboSellAsset');
+      const candidate=openPositions(portfolio.id).find(p=>
+        p.type==='option'&&p.optionType==='Call'&&Number(p.strike)===sellStrike&&
+        normalizeTicker(p.underlying||String(p.symbol||'').split(' ')[0])===normalizeTicker(params.get('ticker'))
+      );
+      if(candidate&&Array.from(sel.options).some(o=>o.value===candidate.id)){
+        sel.value=candidate.id;
+        syncFromSellLeg();
+      }
+    }
+    renderSummary();
+    openModal('optionComboModal');
+
+    try{
+      const url=new URL(window.location.href);
+      ['prefill','portfolio','ticker','name','currency','qty','expiry','date','buyStrike','buyPrice','buyFee','sellStrike','sellPrice','sellFee','alignExpiry']
+        .forEach(k=>url.searchParams.delete(k));
+      history.replaceState(null,'',url.pathname+(url.searchParams.toString()?('?'+url.searchParams.toString()):'')+url.hash);
+    }catch{}
+    return true;
+  }
+  window.applyOptionComboPrefillFromUrl=applyOptionComboPrefillFromUrl;
 
   inject();
 })();
