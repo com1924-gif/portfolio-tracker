@@ -41,6 +41,26 @@ function findPrefilledOptionTarget(accountId,ticker,optionType,strike){
     ?a:null;
 }
 
+function findOptionAssetFlexible(accountId,ticker,optionType,strike,expiry,{sellQty=0,type='Buy'}={}){
+  const exact=findAsset({accountId,type:'option',ticker,optionType,strike,expiry});
+  if(exact)return {asset:exact,fallback:false};
+  if(type!=='Sell')return {asset:null,fallback:false};
+
+  const requested=Math.max(0,Number(sellQty)||0);
+  const open=typeof positionsFor==='function'?positionsFor(accountId):[];
+  const candidates=open.filter(p=>{
+    if(p.type!=='option'||!(Number(p.qty)>0))return false;
+    if(requested&&Number(p.qty)+1e-9<requested)return false;
+    const underlying=normalizeTicker(p.underlying||String(p.symbol||'').split(' ')[0]);
+    return underlying===normalizeTicker(ticker)
+      &&p.optionType===optionType
+      &&Number(p.strike)===Number(strike);
+  });
+  if(candidates.length!==1)return {asset:null,fallback:false};
+  const asset=state.assets.find(a=>a.id===candidates[0].id)||null;
+  return {asset,fallback:!!asset};
+}
+
 function companyLookupTicker(){
   return canonicalStockTicker($('txTicker').value,$('txCurrency').value);
 }
@@ -210,12 +230,15 @@ $('saveTransactionBtn').addEventListener('click',()=>{
       const optionType=$('txOptionType').value,strike=Number($('txStrike').value),expiry=$('txExpiry').value;
       if(assetType==='option'&&(!Number.isFinite(strike)||!expiry))return toast('Option strike and expiry are required.',true);
 
-      let a=assetType==='stock'
-        ?findStockAssetFlexible(accountId,ticker,currency)
-        :(findAsset({accountId,type:assetType,ticker,optionType,strike,expiry})
-          ||findPrefilledOptionTarget(accountId,ticker,optionType,strike));
-
       const price=Number($('txPrice').value),enteredQty=Number($('txQty').value),fee=Number($('txFee').value)||0,currentPrice=Number($('txCurrentPrice').value);
+      let optionMatch={asset:null,fallback:false};
+      let a;
+      if(assetType==='stock'){
+        a=findStockAssetFlexible(accountId,ticker,currency);
+      }else{
+        optionMatch=findOptionAssetFlexible(accountId,ticker,optionType,strike,expiry,{sellQty:enteredQty,type});
+        a=optionMatch.asset||findPrefilledOptionTarget(accountId,ticker,optionType,strike);
+      }
       if((type==='Sell'||dividend)&&!a)return toast('This holding does not exist in the selected portfolio.',true);
       if(trading&&(!Number.isFinite(enteredQty)||enteredQty<=0))return toast('Enter a valid quantity.',true);
       if(!Number.isFinite(price)||price<0)return toast('Enter a valid price.',true);
@@ -238,7 +261,8 @@ $('saveTransactionBtn').addEventListener('click',()=>{
       if(a.type==='option'){
         a.multiplier=Number($('txMultiplier').value)||100;
         const modal=document.getElementById('transactionModal');
-        if(type==='Sell'&&modal?.dataset.prefillTargetAssetId===a.id){
+        const shouldAlignContract=type==='Sell'&&(optionMatch.fallback||modal?.dataset.prefillTargetAssetId===a.id);
+        if(shouldAlignContract){
           a.underlying=normalizeTicker(ticker);
           a.optionType=optionType;
           a.strike=strike;
