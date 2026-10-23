@@ -1,6 +1,6 @@
 (()=>{
-  if(window.__portfolioLifecycleInstalledV28)return;
-  window.__portfolioLifecycleInstalledV28=true;
+  if(window.__portfolioLifecycleInstalledV22511)return;
+  window.__portfolioLifecycleInstalledV22511=true;
 
   const EPS=1e-9;
   let holdingStatusMode='open';
@@ -15,6 +15,7 @@
   function calculatePosition(asset){
     const rows=tradeRowsForAsset(asset.id);
     const mult=multiplier(asset);
+    const isShort=asset.type==='option'&&asset.positionSide==='short';
     let qty=0,cost=0,realized=0,totalBuyCost=0,totalSaleProceeds=0,totalBuyQty=0,totalSellQty=0;
     let firstBuyDate=null,lastTradeDate=null,closedDate=null;
 
@@ -22,6 +23,28 @@
       const q=Number(t.qty)||0,p=Number(t.price)||0,fee=Number(t.fee)||0;
       if(!q)continue;
       lastTradeDate=t.date||lastTradeDate;
+
+      if(isShort){
+        if(t.type==='Sell'){
+          qty+=q;
+          const credit=q*p*mult-fee;
+          cost+=credit;
+          totalSaleProceeds+=credit;
+          totalSellQty+=q;
+          if(!firstBuyDate)firstBuyDate=t.date||null;
+          closedDate=null;
+        }else if(t.type==='Buy'){
+          const avg=qty>EPS?cost/(qty*mult):0;
+          realized+=q*(avg-p)*mult-fee;
+          totalBuyCost+=q*p*mult+fee;
+          totalBuyQty+=q;
+          cost-=q*avg*mult;
+          qty-=q;
+          if(Math.abs(qty)<EPS){qty=0;cost=0;closedDate=t.date||null;}
+        }
+        continue;
+      }
+
       if(t.type==='Buy'){
         qty+=q;
         const buyCost=q*p*mult+fee;
@@ -42,15 +65,18 @@
     }
 
     const avgCost=qty>EPS?cost/(qty*mult):0;
-    const marketValue=qty*(Number(asset.price)||0)*mult;
-    const unrealized=marketValue-cost;
+    const current=(Number(asset.price)||0);
+    const marketValue=isShort?-(qty*current*mult):(qty*current*mult);
+    const unrealized=isShort?(cost-qty*current*mult):(marketValue-cost);
     const totalPL=realized+unrealized;
-    const returnPct=cost?unrealized/cost*100:0;
-    const closedReturnPct=totalBuyCost?realized/totalBuyCost*100:0;
+    const returnPct=cost?unrealized/Math.abs(cost)*100:0;
+    const closedBase=isShort?totalSaleProceeds:totalBuyCost;
+    const closedReturnPct=closedBase?realized/Math.abs(closedBase)*100:0;
+    const openedQty=isShort?totalSellQty:totalBuyQty;
     return {
-      ...asset,qty,cost,avgCost,realized,marketValue,unrealized,totalPL,returnPct,
+      ...asset,qty,cost,avgCost,realized,marketValue,unrealized,totalPL,returnPct,isShort,
       totalBuyCost,totalSaleProceeds,totalBuyQty,totalSellQty,firstBuyDate,lastTradeDate,closedDate,
-      closedReturnPct,isClosed:Math.abs(qty)<EPS&&totalBuyQty>EPS
+      closedReturnPct,isClosed:Math.abs(qty)<EPS&&openedQty>EPS
     };
   }
 
