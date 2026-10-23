@@ -1,6 +1,6 @@
 (()=>{
-  if(window.__portfolioTransactionPrefillInstalledV2255)return;
-  window.__portfolioTransactionPrefillInstalledV2255=true;
+  if(window.__portfolioTransactionPrefillInstalledV2257)return;
+  window.__portfolioTransactionPrefillInstalledV2257=true;
 
   const ALLOWED_TYPES=new Set(['Buy','Sell']);
   const ALLOWED_ASSET_TYPES=new Set(['stock','option']);
@@ -75,11 +75,41 @@
     value('txFee',fee==null?0:fee);
     if(date)value('txDate',date);
 
+    let matchedExistingOption=false;
     if(assetType==='option'){
-      value('txOptionType',params.get('optionType')||'Call');
+      const optionType=params.get('optionType')||'Call';
+      const strike=Number(params.get('strike'));
+      const expiry=params.get('expiry')||'';
+      value('txOptionType',optionType);
       value('txStrike',params.get('strike')||'');
-      value('txExpiry',params.get('expiry')||'');
+      value('txExpiry',expiry);
       value('txMultiplier',params.get('multiplier')||100);
+
+      if(type==='Sell'&&Number.isFinite(strike)&&strike>0){
+        const modal=document.getElementById('transactionModal');
+        const exact=findAsset({accountId:portfolio.id,type:'option',ticker,optionType,strike,expiry});
+        if(exact){
+          if(modal)modal.dataset.prefillTargetAssetId=exact.id;
+        }else if(typeof positionsFor==='function'){
+          const openById=new Map(
+            positionsFor(portfolio.id)
+              .filter(p=>p.type==='option'&&Number(p.qty)>0)
+              .map(p=>[p.id,p])
+          );
+          const candidates=state.assets.filter(a=>{
+            if(a.accountId!==portfolio.id||a.type!=='option'||!openById.has(a.id))return false;
+            const underlying=normalizeTicker(a.underlying||String(a.symbol||'').split(' ')[0]);
+            return underlying===ticker
+              &&a.optionType===optionType
+              &&Number(a.strike)===strike
+              &&Number(openById.get(a.id).qty)>=qty;
+          });
+          if(candidates.length===1){
+            if(modal)modal.dataset.prefillTargetAssetId=candidates[0].id;
+            matchedExistingOption=true;
+          }
+        }
+      }
     }
 
     if(typeof updateTxForm==='function')updateTxForm();
@@ -94,7 +124,9 @@
       const note=document.createElement('div');
       note.id='transactionPrefillNote';
       note.style.cssText='font-size:11px;line-height:1.45;color:var(--muted);background:#151519;border:1px solid var(--line);border-radius:12px;padding:10px 12px;';
-      note.textContent='Prefilled from a secure link. Current Price is intentionally left blank; stock quotes refresh automatically. Review the execution price, quantity, date and broker fee before saving.';
+      note.textContent=matchedExistingOption
+        ?'Prefilled from a secure link. Matched to the existing open option position; the contract expiry will be aligned to this broker-confirmed trade when you save. Review price, quantity, date and fee.'
+        :'Prefilled from a secure link. Current Price is intentionally left blank; stock quotes refresh automatically. Review the execution price, quantity, date and broker fee before saving.';
       saveBtn?.before(note);
     }
 
