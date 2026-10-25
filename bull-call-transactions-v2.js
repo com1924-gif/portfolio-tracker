@@ -1,5 +1,5 @@
 (()=>{
-if(window.__bullCallTxGroup22512)return;window.__bullCallTxGroup22512=true;
+if(window.__bullCallTxGroup22515)return;window.__bullCallTxGroup22512=true;
 function strategyRows(pid){
  const m=new Map();
  state.transactions.forEach(t=>{
@@ -28,7 +28,7 @@ window.renderTransactionRows=renderTransactionRows=function(){
     const ccy=lt.currency||st.currency||'USD';
     const debit=(Number(lt.qty)||0)*(Number(lt.price)||0)*100+(Number(lt.fee)||0)-((Number(st.qty)||0)*(Number(st.price)||0)*100-(Number(st.fee)||0));
     const under=normalizeTicker(la?.underlying||sa?.underlying||'');
-    html.push(`<div class="tx-row"><div><div class="tx-title">Bull Call Spread · ${esc(under)} ${Number(la?.strike)}C / -${Number(sa?.strike)}C</div><div class="tx-sub">${esc(lt.date||st.date)} · ${q} spread${q===1?'':'s'} · expiry ${esc(la?.expiry||sa?.expiry||'—')}</div></div><div class="tx-actions"><div class="right"><div>${money(debit,ccy)}</div><div class="tx-sub">Net debit</div></div></div></div>`);
+    html.push(`<div class="tx-row"><div><div class="tx-title">Bull Call Spread · ${esc(under)} ${Number(la?.strike)}C / -${Number(sa?.strike)}C</div><div class="tx-sub">${esc(lt.date||st.date)} · ${q} spread${q===1?'':'s'} · expiry ${esc(la?.expiry||sa?.expiry||'—')}</div></div><div class="tx-actions"><div class="right"><div>${money(debit,ccy)}</div><div class="tx-sub">Net debit</div></div><button class="edit-btn" type="button" onclick="openBullCallStrategyEditor('${t.strategyId}')">Edit</button></div></div>`);
     continue;
    }
   }
