@@ -1,5 +1,5 @@
 (()=>{
-if(window.__bullCallGroup22512)return;window.__bullCallGroup22512=true;
+if(window.__bullCallGroup22515)return;window.__bullCallGroup22512=true;
 const rawSummary=window.summaryFor,rawPositions=window.positionsFor,rawOpen=window.openHoldingDetail;
 function txMap(pid){const m=new Map();state.transactions.forEach(t=>{if(t.strategyType!=='bull_call_spread'||!t.strategyId||(pid&&t.accountId!==pid))return;if(!m.has(t.strategyId))m.set(t.strategyId,[]);m.get(t.strategyId).push(t)});return m}
 function snap(id,pid){
@@ -36,7 +36,8 @@ window.openBullCallStrategyDetail=id=>{
  <div class="detail-transactions">
  <div class="tx-row"><div><div class="tx-title positive">Long ${Number(g.longAsset.strike)} Call</div><div class="tx-sub">Buy ${g.longTx.qty} @ ${money(g.longTx.price,g.currency)} · fee ${money(g.longTx.fee||0,g.currency)}</div></div><div class="right">${money(g.longPos.marketValue,g.currency)}</div></div>
  <div class="tx-row"><div><div class="tx-title negative">Short ${Number(g.shortAsset.strike)} Call</div><div class="tx-sub">Sell ${g.shortTx.qty} @ ${money(g.shortTx.price,g.currency)} · fee ${money(g.shortTx.fee||0,g.currency)}</div></div><div class="right">${money(g.shortPos.marketValue,g.currency)}</div></div>
- </div>`;
+ </div>
+ <button type="button" class="ghost-btn full" style="margin-top:12px" onclick="openBullCallStrategyEditor('${g.strategyId}')">Update Strategy Prices</button>`;
  openModal('holdingModal')
 };
 window.openHoldingDetail=id=>String(id).startsWith('strategy:')?window.openBullCallStrategyDetail(String(id).slice(9)):rawOpen?.(id);
