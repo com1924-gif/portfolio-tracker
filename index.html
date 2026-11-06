@@ -73,6 +73,21 @@
           <div class="section-head"><h2>Top Holdings</h2><span class="muted">By market value</span></div>
           <div id="homeHoldings" class="holding-list"></div>
         </section>
+
+        <section id="overallReturnPanel" class="panel overall-return-panel">
+          <div class="overall-return-head">
+            <button type="button" class="overall-return-tab active" data-mode="value">Value</button>
+            <button type="button" class="overall-return-tab" data-mode="performance">Performance</button>
+          </div>
+          <div class="overall-return-body">
+            <div id="overallReturnLabel" class="overall-return-label">All portfolios · Net Assets</div>
+            <div id="overallReturnHero" class="overall-return-hero">—</div>
+            <div id="overallReturnSub" class="overall-return-sub"></div>
+            <div id="overallReturnChart" class="overall-return-chart"><div class="overall-return-loading">Loading overall history…</div></div>
+            <div id="overallReturnPeriods" class="overall-return-periods"></div>
+            <div id="overallReturnNote" class="overall-return-note"></div>
+          </div>
+        </section>
       </section>
 
       <section id="portfolioView" class="view">
@@ -198,6 +213,6 @@
   </div></div>
 
   <div id="toast" class="toast hidden"></div>
-  <script src="app.js?v=2.25.16"></script>
+  <script src="app.js?v=2.25.17"></script>
 </body>
 </html>
