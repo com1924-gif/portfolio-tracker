@@ -1,6 +1,6 @@
 (()=>{
-  if(window.__overallReturnSummaryV22516)return;
-  window.__overallReturnSummaryV22516=true;
+  if(window.__overallReturnSummaryV22517)return;
+  window.__overallReturnSummaryV22517=true;
 
   const PERIODS=['1W','MTD','1M','3M','YTD','1Y','ALL'];
   let mode='value';
@@ -38,30 +38,33 @@
     const home=document.getElementById('homeView');
     if(!home)return null;
     let panel=document.getElementById('overallReturnPanel');
-    if(panel)return panel;
-    panel=document.createElement('section');
-    panel.id='overallReturnPanel';
-    panel.className='panel overall-return-panel';
-    panel.innerHTML=`
-      <div class="overall-return-head">
-        <button type="button" class="overall-return-tab active" data-mode="value">Value</button>
-        <button type="button" class="overall-return-tab" data-mode="performance">Performance</button>
-      </div>
-      <div class="overall-return-body">
-        <div id="overallReturnLabel" class="overall-return-label">All portfolios</div>
-        <div id="overallReturnHero" class="overall-return-hero">—</div>
-        <div id="overallReturnSub" class="overall-return-sub"></div>
-        <div id="overallReturnChart" class="overall-return-chart"><div class="overall-return-loading">Loading history…</div></div>
-        <div id="overallReturnPeriods" class="overall-return-periods"></div>
-        <div id="overallReturnNote" class="overall-return-note"></div>
-      </div>`;
-    home.appendChild(panel);
-
-    panel.querySelectorAll('.overall-return-tab').forEach(btn=>btn.addEventListener('click',()=>{
-      mode=btn.dataset.mode;
-      panel.querySelectorAll('.overall-return-tab').forEach(b=>b.classList.toggle('active',b===btn));
-      renderOverallReturn();
-    }));
+    if(!panel){
+      panel=document.createElement('section');
+      panel.id='overallReturnPanel';
+      panel.className='panel overall-return-panel';
+      panel.innerHTML=`
+        <div class="overall-return-head">
+          <button type="button" class="overall-return-tab active" data-mode="value">Value</button>
+          <button type="button" class="overall-return-tab" data-mode="performance">Performance</button>
+        </div>
+        <div class="overall-return-body">
+          <div id="overallReturnLabel" class="overall-return-label">All portfolios · Net Assets</div>
+          <div id="overallReturnHero" class="overall-return-hero">—</div>
+          <div id="overallReturnSub" class="overall-return-sub"></div>
+          <div id="overallReturnChart" class="overall-return-chart"><div class="overall-return-loading">Loading overall history…</div></div>
+          <div id="overallReturnPeriods" class="overall-return-periods"></div>
+          <div id="overallReturnNote" class="overall-return-note"></div>
+        </div>`;
+      home.appendChild(panel);
+    }
+    if(panel.dataset.overallReturnBound!=='1'){
+      panel.dataset.overallReturnBound='1';
+      panel.querySelectorAll('.overall-return-tab').forEach(btn=>btn.addEventListener('click',()=>{
+        mode=btn.dataset.mode;
+        panel.querySelectorAll('.overall-return-tab').forEach(b=>b.classList.toggle('active',b===btn));
+        renderOverallReturn();
+      }));
+    }
     renderPeriods();
     return panel;
   }
