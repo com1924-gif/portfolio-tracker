@@ -1,6 +1,6 @@
 (()=>{
-  if(window.__overallReturnSummaryV22521)return;
-  window.__overallReturnSummaryV22521=true;
+  if(window.__overallReturnSummaryV22517)return;
+  window.__overallReturnSummaryV22517=true;
 
   const PERIODS=['1W','MTD','1M','3M','YTD','1Y','ALL'];
   let mode='value';
@@ -137,8 +137,6 @@
       state.transactions.filter(t=>t.accountId===account.id&&t.date>=start).forEach(t=>dates.add(t.date));
       state.fx.filter(f=>f.accountId===account.id&&f.date>=start).forEach(f=>dates.add(f.date));
     });
-    const baseline=state.settings?.performanceBaseline;
-    if(baseline?.date&&baseline.date>=start)dates.add(baseline.date);
 
     const today=dateString(new Date());
     const out=[];
@@ -171,52 +169,30 @@
 
   function flowsByDate(start){
     const map=new Map();
-    state.transactions
-      .filter(t=>['Deposit','Withdrawal'].includes(t.type)&&(t.date||'')>=start)
-      .forEach(t=>{
-        const amount=convert(Number(t.amount)||0,t.currency||'HKD');
-        const signed=t.type==='Deposit'?amount:-amount;
-        map.set(t.date,(map.get(t.date)||0)+signed);
-      });
+    state.transactions.filter(t=>['Deposit','Withdrawal'].includes(t.type)&&(t.date||'')>=start).forEach(t=>{
+      const amount=convert(Number(t.amount)||0,t.currency);
+      const signed=t.type==='Deposit'?amount:-amount;
+      map.set(t.date,(map.get(t.date)||0)+signed);
+    });
     return map;
   }
 
-  function performanceValueSeries(values,start){
-    const baseline=state.settings?.performanceBaseline;
-    let out=(values||[]).map(p=>({date:p.date,value:Number(p.value)||0}));
-
-    if(baseline?.date&&baseline.date>=start){
-      const baselineValue=convert(Number(baseline.value)||0,baseline.currency||'HKD');
-      out=out.filter(p=>p.date>=baseline.date);
-      const same=out.find(p=>p.date===baseline.date);
-      if(same)same.value=baselineValue;
-      else out.push({date:baseline.date,value:baselineValue});
-      out.sort((a,b)=>a.date.localeCompare(b.date));
-    }
-    return out;
-  }
-
   function performanceSeries(values,start){
-    const adjusted=performanceValueSeries(values,start);
-    if(adjusted.length<2)return [];
-
-    const effectiveStart=adjusted[0].date;
-    const flows=flowsByDate(effectiveStart);
-    let first=adjusted.findIndex(p=>Number(p.value)>0);
-    if(first<0)return [];
-
+    if(!Array.isArray(values)||values.length<2)return [];
+    const flows=flowsByDate(start);
+    let first=values.findIndex(p=>Number(p.value)>0);
+    if(first<0||first>=values.length)return [];
     let index=1;
-    let prev=Number(adjusted[first].value);
-    const out=[{date:adjusted[first].date,value:0}];
-
-    for(let i=first+1;i<adjusted.length;i++){
-      const cur=Number(adjusted[i].value);
+    let prev=Number(values[first].value);
+    const out=[{date:values[first].date,value:0}];
+    for(let i=first+1;i<values.length;i++){
+      const cur=Number(values[i].value);
       if(!(prev>0)||!Number.isFinite(cur)){prev=cur;continue;}
-      const externalFlow=flows.get(adjusted[i].date)||0;
-      const r=(cur-externalFlow-prev)/prev;
+      const flow=flows.get(values[i].date)||0;
+      const r=(cur-flow-prev)/prev;
       if(Number.isFinite(r)&&r>-1){
         index*=1+r;
-        out.push({date:adjusted[i].date,value:(index-1)*100});
+        out.push({date:values[i].date,value:(index-1)*100});
       }
       prev=cur;
     }
@@ -335,12 +311,8 @@
           :['Performance removes recorded deposits / withdrawals from the selected period and compounds the remaining portfolio return.'];
         parts.push('Historical FX uses the current saved/reference FX rates.');
         if(hasOptions)parts.push('Historical option values are approximate before the latest recorded/manual option price.');
-        const baseline=state.settings?.performanceBaseline;
-        const datedFlows=state.transactions.filter(t=>['Deposit','Withdrawal'].includes(t.type)&&(t.date||'')>=start);
-        if(mode==='performance'&&baseline?.date)parts.push(`Opening performance baseline: ${shortDate(baseline.date)} · ${money(convert(Number(baseline.value)||0,baseline.currency||'HKD'))}.`);
-        if(mode==='performance'&&datedFlows.length)parts.push(`${datedFlows.length} dated external cash flow${datedFlows.length===1?'':'s'} included from the cash ledger.`);
-        if(mode==='performance'&&period==='ALL'&&(!baseline?.date||baseline.date>'2026-01-01'))parts.push('All is a tracked-period proxy, not formal Lifetime TWR/XIRR, because older contribution dates may be incomplete.');
-        if(mode==='performance'&&!hasFlows&&!datedFlows.length)parts.push('No dated external cash flows were recorded in this period.');
+        if(mode==='performance'&&period==='ALL')parts.push('All is a tracked-period proxy, not formal Lifetime TWR/XIRR, because older contribution dates may be incomplete.');
+        if(mode==='performance'&&!hasFlows)parts.push('No dated external cash flows were recorded in this period.');
         note.textContent=parts.join(' ');
       }
     }catch(err){

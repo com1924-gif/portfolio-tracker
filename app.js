@@ -1,34 +1,33 @@
 (async()=>{
-  window.__PORTFOLIO_APP_VERSION='2.25.21';
+  window.__PORTFOLIO_APP_VERSION='2.25.17';
   const files=[
-    'core-v2.js?v=2.25.21',
-    'ui-v2.js?v=2.25.21',
-    'actions-v2.js?v=2.25.21',
-    'lifecycle-v2.js?v=2.25.21',
-    'holding-cost-v2.js?v=2.25.21',
-    'delete-guard-v2.js?v=2.25.21',
-    'ledger-v2.js?v=2.25.21',
-    'capital-v2.js?v=2.25.21',
-    'currency-eur-v2.js?v=2.25.21',
-    'reorder-v2.js?v=2.25.21',
-    'swipe-nav-v2.js?v=2.25.21',
-    'sync-v225.js?v=2.25.21',
-    'live-fx-v2.js?v=2.25.21',
-    'prices-v2.js?v=2.25.21',
-    'layout-v225.js?v=2.25.21',
-    'history-v2.js?v=2.25.21',
-    'history-style-v2.js?v=2.25.21',
-    'performance-v225.js?v=2.25.21',
-    'home-v225.js?v=2.25.21',
-    'overall-return-v2.js?v=2.25.21',
-    'performance-import-2026-v2.js?v=2.25.21',
-    'privacy-toggle-v2.js?v=2.25.21',
-    'option-close-v2.js?v=2.25.21',
-    'option-combo-v2.js?v=2.25.21',
-    'bull-call-group-v2.js?v=2.25.21',
-    'bull-call-transactions-v2.js?v=2.25.21',
-    'bull-call-edit-v2.js?v=2.25.21',
-    'transaction-prefill-v2.js?v=2.25.21'
+    'core-v2.js?v=2.25.17',
+    'ui-v2.js?v=2.25.17',
+    'actions-v2.js?v=2.25.17',
+    'lifecycle-v2.js?v=2.25.17',
+    'holding-cost-v2.js?v=2.25.17',
+    'delete-guard-v2.js?v=2.25.17',
+    'ledger-v2.js?v=2.25.17',
+    'capital-v2.js?v=2.25.17',
+    'currency-eur-v2.js?v=2.25.17',
+    'reorder-v2.js?v=2.25.17',
+    'swipe-nav-v2.js?v=2.25.17',
+    'sync-v225.js?v=2.25.17',
+    'live-fx-v2.js?v=2.25.17',
+    'prices-v2.js?v=2.25.17',
+    'layout-v225.js?v=2.25.17',
+    'history-v2.js?v=2.25.17',
+    'history-style-v2.js?v=2.25.17',
+    'performance-v225.js?v=2.25.17',
+    'home-v225.js?v=2.25.17',
+    'overall-return-v2.js?v=2.25.17',
+    'privacy-toggle-v2.js?v=2.25.17',
+    'option-close-v2.js?v=2.25.17',
+    'option-combo-v2.js?v=2.25.17',
+    'bull-call-group-v2.js?v=2.25.17',
+    'bull-call-transactions-v2.js?v=2.25.17',
+    'bull-call-edit-v2.js?v=2.25.17',
+    'transaction-prefill-v2.js?v=2.25.17'
   ];
 
   for(const src of files){
@@ -50,7 +49,6 @@
   }
 
   if(typeof renderAll==='function')renderAll();
-  if(typeof window.applyPerformance2026ImportFromUrl==='function')await window.applyPerformance2026ImportFromUrl();
   if(typeof window.applyOptionComboPrefillFromUrl==='function')await window.applyOptionComboPrefillFromUrl();
   if(typeof window.applyTransactionPrefillFromUrl==='function')await window.applyTransactionPrefillFromUrl();
 
