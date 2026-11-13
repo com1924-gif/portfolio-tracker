@@ -267,6 +267,7 @@
     const sub=document.getElementById('overallReturnSub');
     const label=document.getElementById('overallReturnLabel');
     const note=document.getElementById('overallReturnNote');
+    if(window.PortfolioYtdAnchor?.renderOverall(mode,period))return;
     if(chart)chart.innerHTML='<div class="overall-return-loading">Loading overall history…</div>';
     if(label)label.textContent=mode==='value'?'All portfolios · Net Assets':'All portfolios · Total Return';
 

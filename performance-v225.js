@@ -283,6 +283,7 @@
     const portfolioId=currentPortfolioId;
     const chart=document.getElementById('benchmarkChart');
     const note=document.getElementById('benchmarkNote');
+    if(window.PortfolioYtdAnchor?.renderPortfolio(portfolioId,performancePeriod,{force}))return;
     if(chart)chart.innerHTML='<div class="history-loading">Loading total-return benchmark…</div>';
     try{
       const start=periodStart(portfolioId,performancePeriod);
@@ -291,6 +292,7 @@
         fetchBenchmarks(start,{force})
       ]);
       if(currentPortfolioId!==portfolioId)return;
+      if(window.PortfolioYtdAnchor?.renderPortfolio(portfolioId,performancePeriod,{force}))return;
       const netSeries=buildPortfolioHistory(portfolioId,start,pairs,history);
       const rawPortfolio=trackedReturnSeries(netSeries,portfolioId,start);
       const vooClean=cleanBenchmarkPoints(benchmarks.VOO);
@@ -539,6 +541,8 @@
       const period=activePeriod();
       const start=periodStart(portfolioId,period);
       if(typeof refreshStockPrices==='function')await refreshStockPrices({force:true,silent:true});
+      if(currentPortfolioId!==portfolioId||!performanceActive())return;
+      if(window.PortfolioYtdAnchor?.renderPortfolio(portfolioId,period,{force:true}))return;
       const [portfolioData,bench]=await Promise.all([
         (async()=>{
           const result=await fetchHistoryForPortfolio(portfolioId,start,{force:false});
@@ -586,3 +590,4 @@
 
   setInterval(renderLive,REFRESH_MS);
 })();
+

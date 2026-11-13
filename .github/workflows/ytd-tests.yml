@@ -1,0 +1,45 @@
+name: YTD regression tests
+
+on:
+  push:
+    branches: [main, feature/optional-ytd-anchor]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - name: Check JavaScript syntax
+        run: |
+          node --check app.js
+          node --check ytd-anchor-v2.js
+          node --check performance-v225.js
+          node --check overall-return-v2.js
+          node --check tests/ytd-browser.mjs
+      - name: Calculation, state and encryption tests
+        run: node --test tests/ytd-anchor.test.cjs
+      - name: Install pinned browser test dependency
+        run: npm install --no-save --package-lock=false playwright@1.62.1
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Browser regression against v2.25.17
+        run: node tests/ytd-browser.mjs
+        env:
+          YTD_BASE_SHA: 7fe210776a721f4003a8d25ba6e954ab20e6ff6d
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: ytd-browser-verification
+          path: test-results/
+          retention-days: 7
