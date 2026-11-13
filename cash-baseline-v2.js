@@ -1,6 +1,6 @@
 (()=>{
-  if(window.__cashBaselineV22522)return;
-  window.__cashBaselineV22522=true;
+  if(window.__cashBaselineV22524)return;
+  window.__cashBaselineV22524=true;
 
   const TRACKING_START='2026-01-01';
   const CURRENCIES=['HKD','USD','KRW','EUR'];
@@ -319,5 +319,6 @@
 
   ensureModal();
   installOpeningCashButton();
+  window.__cashBaselineReady=true;
   renderAll();
 })();
