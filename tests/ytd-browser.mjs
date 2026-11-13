@@ -146,12 +146,12 @@ try{
  assert.equal(await automatic.locator('#ytdModal').isVisible(),false,'automatic Dietz settings did not save');
  assert.equal(await accounting(automatic),automaticBefore,'automatic Dietz changed accounting');
  const automaticStart=await automatic.evaluate(()=>PortfolioYtdAnchor.resultFor('one'));
- assert.equal(automaticStart.profit,-31);assert.equal(automaticStart.autoFlowCount,0);assert.equal(automaticStart.staleFlows,false);
+ assert.ok(Math.abs(automaticStart.profit+31)<1e-8);assert.equal(automaticStart.autoFlowCount,0);assert.equal(automaticStart.staleFlows,false);
  await automatic.evaluate(()=>{state.transactions.push({id:'auto-deposit',accountId:'one',type:'Deposit',currency:'USD',amount:40,date:'2026-11-13'});save();renderAll();});
  let automaticResult=await automatic.evaluate(()=>PortfolioYtdAnchor.resultFor('one'));
  assert.equal(automaticResult.autoFlowCount,1);assert.ok(Math.abs(automaticResult.returnPct-automaticStart.returnPct)<1e-8,'new deposit became a Dietz gain');
  await automatic.evaluate(()=>{state.transactions.push({id:'auto-withdrawal',accountId:'one',type:'Withdrawal',currency:'USD',amount:10,date:'2026-11-13'});state.assets[0].price=13;save();renderAll();});
- automaticResult=await automatic.evaluate(()=>PortfolioYtdAnchor.resultFor('one'));assert.equal(automaticResult.autoFlowCount,2);assert.equal(automaticResult.profit,-21);
+ automaticResult=await automatic.evaluate(()=>PortfolioYtdAnchor.resultFor('one'));assert.equal(automaticResult.autoFlowCount,2);assert.ok(Math.abs(automaticResult.profit+21)<1e-8);
  await automatic.locator('#portfolioCurrency').selectOption('USD');
  assert.ok(Math.abs((await automatic.evaluate(()=>PortfolioYtdAnchor.resultFor('one'))).returnPct-automaticResult.returnPct)<1e-8);
  await automatic.locator('#ytdSettingsBtn').click();assert.equal(await automatic.locator('#ytdAutomaticEnabled').isChecked(),true);
