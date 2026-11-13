@@ -1,6 +1,6 @@
 (()=>{
-  if(window.__overallReturnSummaryV22518)return;
-  window.__overallReturnSummaryV22518=true;
+  if(window.__overallReturnSummaryV22521)return;
+  window.__overallReturnSummaryV22521=true;
 
   const PERIODS=['1W','MTD','1M','3M','YTD','1Y','ALL'];
   let mode='value';
@@ -137,7 +137,6 @@
       state.transactions.filter(t=>t.accountId===account.id&&t.date>=start).forEach(t=>dates.add(t.date));
       state.fx.filter(f=>f.accountId===account.id&&f.date>=start).forEach(f=>dates.add(f.date));
     });
-    (state.performanceFlows||[]).filter(f=>(f.date||'')>=start).forEach(f=>dates.add(f.date));
     const baseline=state.settings?.performanceBaseline;
     if(baseline?.date&&baseline.date>=start)dates.add(baseline.date);
 
@@ -170,87 +169,51 @@
     return out;
   }
 
-  function flowSignature(accountId,date,type,amountHKD){
-    return [accountId||'',date||'',type||'',Number(amountHKD||0).toFixed(2)].join('|');
-  }
-
-  function transactionFlowSignatures(){
-    const set=new Set();
-    state.transactions.filter(t=>['Deposit','Withdrawal'].includes(t.type)).forEach(t=>{
-      const hkd=convert(Number(t.amount)||0,t.currency||'HKD','HKD');
-      set.add(flowSignature(t.accountId,t.date,t.type,hkd));
-    });
-    return set;
-  }
-
-  function uniquePerformanceFlows(){
-    const txSigs=transactionFlowSignatures();
-    return (state.performanceFlows||[]).filter(f=>{
-      const hkd=convert(Number(f.amount)||0,f.currency||'HKD','HKD');
-      return !txSigs.has(flowSignature(f.accountId,f.date,f.type,hkd));
-    });
-  }
-
-  function performanceCashAdjustmentAt(date){
-    return uniquePerformanceFlows().filter(f=>(f.date||'')<=date).reduce((sum,f)=>{
-      const amount=convert(Number(f.amount)||0,f.currency||'HKD');
-      return sum+(f.type==='Withdrawal'?-amount:amount);
-    },0);
+  function flowsByDate(start){
+    const map=new Map();
+    state.transactions
+      .filter(t=>['Deposit','Withdrawal'].includes(t.type)&&(t.date||'')>=start)
+      .forEach(t=>{
+        const amount=convert(Number(t.amount)||0,t.currency||'HKD');
+        const signed=t.type==='Deposit'?amount:-amount;
+        map.set(t.date,(map.get(t.date)||0)+signed);
+      });
+    return map;
   }
 
   function performanceValueSeries(values,start){
-    let out=(values||[]).map(p=>({date:p.date,value:Number(p.value)||0}));
-    out=out.map(p=>({date:p.date,value:p.value+performanceCashAdjustmentAt(p.date)}));
-
     const baseline=state.settings?.performanceBaseline;
+    let out=(values||[]).map(p=>({date:p.date,value:Number(p.value)||0}));
+
     if(baseline?.date&&baseline.date>=start){
       const baselineValue=convert(Number(baseline.value)||0,baseline.currency||'HKD');
       out=out.filter(p=>p.date>=baseline.date);
-      const existing=out.find(p=>p.date===baseline.date);
-      if(existing)existing.value=baselineValue;
+      const same=out.find(p=>p.date===baseline.date);
+      if(same)same.value=baselineValue;
       else out.push({date:baseline.date,value:baselineValue});
       out.sort((a,b)=>a.date.localeCompare(b.date));
     }
     return out;
   }
 
-  function flowsByDate(start){
-    const map=new Map();
-    const seen=new Set();
-    state.transactions.filter(t=>['Deposit','Withdrawal'].includes(t.type)&&(t.date||'')>=start).forEach(t=>{
-      const amount=convert(Number(t.amount)||0,t.currency);
-      const hkd=convert(Number(t.amount)||0,t.currency||'HKD','HKD');
-      seen.add(flowSignature(t.accountId,t.date,t.type,hkd));
-      const signed=t.type==='Deposit'?amount:-amount;
-      map.set(t.date,(map.get(t.date)||0)+signed);
-    });
-    (state.performanceFlows||[]).filter(f=>(f.date||'')>=start).forEach(f=>{
-      const hkd=convert(Number(f.amount)||0,f.currency||'HKD','HKD');
-      const sig=flowSignature(f.accountId,f.date,f.type,hkd);
-      if(seen.has(sig))return;
-      seen.add(sig);
-      const amount=convert(Number(f.amount)||0,f.currency||'HKD');
-      const signed=f.type==='Withdrawal'?-amount:amount;
-      map.set(f.date,(map.get(f.date)||0)+signed);
-    });
-    return map;
-  }
-
   function performanceSeries(values,start){
     const adjusted=performanceValueSeries(values,start);
-    if(!Array.isArray(adjusted)||adjusted.length<2)return [];
-    const effectiveStart=adjusted[0]?.date||start;
+    if(adjusted.length<2)return [];
+
+    const effectiveStart=adjusted[0].date;
     const flows=flowsByDate(effectiveStart);
     let first=adjusted.findIndex(p=>Number(p.value)>0);
-    if(first<0||first>=adjusted.length)return [];
+    if(first<0)return [];
+
     let index=1;
     let prev=Number(adjusted[first].value);
     const out=[{date:adjusted[first].date,value:0}];
+
     for(let i=first+1;i<adjusted.length;i++){
       const cur=Number(adjusted[i].value);
       if(!(prev>0)||!Number.isFinite(cur)){prev=cur;continue;}
-      const flow=flows.get(adjusted[i].date)||0;
-      const r=(cur-flow-prev)/prev;
+      const externalFlow=flows.get(adjusted[i].date)||0;
+      const r=(cur-externalFlow-prev)/prev;
       if(Number.isFinite(r)&&r>-1){
         index*=1+r;
         out.push({date:adjusted[i].date,value:(index-1)*100});
@@ -373,11 +336,11 @@
         parts.push('Historical FX uses the current saved/reference FX rates.');
         if(hasOptions)parts.push('Historical option values are approximate before the latest recorded/manual option price.');
         const baseline=state.settings?.performanceBaseline;
-        const importedFlows=(state.performanceFlows||[]).filter(f=>(f.date||'')>=start);
+        const datedFlows=state.transactions.filter(t=>['Deposit','Withdrawal'].includes(t.type)&&(t.date||'')>=start);
         if(mode==='performance'&&baseline?.date)parts.push(`Opening performance baseline: ${shortDate(baseline.date)} · ${money(convert(Number(baseline.value)||0,baseline.currency||'HKD'))}.`);
-        if(mode==='performance'&&importedFlows.length)parts.push(`${importedFlows.length} dated performance cash flow${importedFlows.length===1?'':'s'} included.`);
+        if(mode==='performance'&&datedFlows.length)parts.push(`${datedFlows.length} dated external cash flow${datedFlows.length===1?'':'s'} included from the cash ledger.`);
         if(mode==='performance'&&period==='ALL'&&(!baseline?.date||baseline.date>'2026-01-01'))parts.push('All is a tracked-period proxy, not formal Lifetime TWR/XIRR, because older contribution dates may be incomplete.');
-        if(mode==='performance'&&!hasFlows&&!importedFlows.length)parts.push('No dated external cash flows were recorded in this period.');
+        if(mode==='performance'&&!hasFlows&&!datedFlows.length)parts.push('No dated external cash flows were recorded in this period.');
         note.textContent=parts.join(' ');
       }
     }catch(err){
