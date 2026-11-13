@@ -62,7 +62,7 @@ async function makePage(variant,{syncKey=null,mobile=false}={}){
 }
 const accounting=page=>page.evaluate(()=>JSON.stringify({transactions:state.transactions,fx:state.fx,holdings:holdingsFor(),positions:positionsFor(),cash:cashBalancesFor(),summary:summaryFor()}));
 const allState=page=>page.evaluate(()=>JSON.stringify(state));
-async function performance(page){await page.evaluate(()=>openPortfolio('one'));await page.locator('[data-tab="performance"]').click();await page.waitForTimeout(400);}
+async function performance(page,id='one'){await page.evaluate(id=>openPortfolio(id),id);await page.locator('[data-tab="performance"]').click();await page.waitForTimeout(400);}
 async function setProfile(page,on=true){
  await page.locator('#ytdSettingsBtn').click();await page.locator('#ytdEnabled').setChecked(on);
  if(on){await page.locator('#ytdCurrency').selectOption('USD');await page.locator('#ytdNavSource').selectOption('app');await page.locator('#ytdOpening').fill('100');await page.locator('#ytdSource').fill('Synthetic verification');
@@ -94,16 +94,23 @@ try{
  await modern.evaluate(()=>goHome());await modern.locator('.overall-return-tab[data-mode="performance"]').click();await modern.locator('.overall-return-period[data-period="YTD"]').click();
  assert.match(await modern.locator('#overallReturnLabel').innerText(),/Enabled portfolios only/);
  assert.match(await modern.locator('#overallReturnSub').innerText(),/1\/2/);
+ await performance(modern,'two');await setProfile(modern);await modern.evaluate(()=>goHome());await modern.waitForTimeout(300);
+ assert.match(await modern.locator('#overallReturnChart').innerText(),/same NAV valuation date/,'aggregate mixed snapshot/current dates');
+ await performance(modern,'two');await setProfile(modern,false);
  await performance(modern);await setProfile(modern,false);await modern.waitForTimeout(400);
  assert.equal(await modern.locator('#benchmarkLegend').innerText(),legacyLegend,'disabling did not restore legacy performance');
  assert.equal(await accounting(modern),await accounting(base),'accounting differs after disabling');
  console.log('PASS: legacy startup/state/output equality; opt-in; accounting unchanged; flow source exclusivity; currency invariance; coverage; disable.');
 
+ const baselineMobile=await makePage('base',{mobile:true});await performance(baselineMobile);
+ const baselineWidth=await baselineMobile.evaluate(()=>document.documentElement.scrollWidth);
  const mobile=await makePage('new',{mobile:true});await performance(mobile);await mobile.locator('#ytdSettingsBtn').click();await mobile.locator('#ytdEnabled').check();await mobile.locator('#ytdOpening').fill('0');await mobile.locator('#ytdAddFlow').click();
  await mobile.locator('.ytd-date').fill('2026-05-01');await mobile.locator('.ytd-amount').fill('100');
  await mobile.screenshot({path:path.join(output,'ytd-mobile-editor.png'),fullPage:true});
- const widths=await mobile.evaluate(()=>({screen:innerWidth,scroll:document.documentElement.scrollWidth}));assert.ok(widths.scroll<=widths.screen+1,JSON.stringify(widths));
+ const widths=await mobile.evaluate(()=>({screen:innerWidth,scroll:document.documentElement.scrollWidth,editor:document.querySelector('.ytd-editor').getBoundingClientRect().width}));
+ assert.ok(widths.scroll<=baselineWidth+1,'new horizontal overflow: '+JSON.stringify({baselineWidth,...widths}));assert.ok(widths.editor<=widths.screen+1,'YTD editor wider than viewport');
  await mobile.locator('#ytdSave').click();assert.equal(await mobile.evaluate(()=>PortfolioYtdAnchor.resultFor('one').ok),true);
+ await mobile.locator('#tab-performance').screenshot({path:path.join(output,'ytd-mobile-result.png')});
  console.log('PASS: mobile editor layout, save and zero opening NAV.');
 
  const cloud=await makePage('new',{syncKey:keyA});await performance(cloud);await setProfile(cloud);await cloud.evaluate(()=>goHome());

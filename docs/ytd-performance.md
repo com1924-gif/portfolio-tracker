@@ -1,6 +1,6 @@
 # Optional portfolio YTD performance
 
-Existing portfolios retain the recorded-transaction calculation until a user explicitly enables a profile for that portfolio and year. Open a portfolio and choose **YTD settings**. No settings or personal amounts are bundled with the application, and no migration writes a default profile.
+Existing portfolios retain the recorded-transaction calculation until a user explicitly enables a profile for that portfolio and year. Open a portfolio, select **Performance**, then choose **YTD settings**. No settings or personal amounts are bundled with the application, and no migration writes a default profile.
 
 Profiles live at `state.accounts[].performanceProfiles[year]`. Version 1 stores `enabled`, `method: "modified-dietz"`, reporting `currency`, prior year-end `openingAsOf`, `openingNav`, `externalFlows`, `flowsCompleteThrough` and an optional source note. Each flow has a unique ID, date, signed amount in the reporting currency, note and optional `counterpartyId`/`transferId`. Zero opening NAV is supported.
 

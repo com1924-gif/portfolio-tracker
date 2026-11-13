@@ -285,7 +285,7 @@
         <p class="ytd-form-note">For transfers between portfolios, enter equal opposite amounts, the other portfolio and the same transfer reference on both sides. Cross-date or unmatched transfers block the anchored group return.</p>
         <label>Flow list reviewed through<input id="ytdReviewed" type="date"/></label>
         <div id="ytdError" class="ytd-error" role="alert"></div><button id="ytdSave" type="button" class="primary-btn full">Save YTD settings</button>
-        <p class="ytd-form-note">Modified Dietz is a day-weighted estimate, not exact TWR. An opening anchor cannot reconstruct missing daily NAV history. Current NAV still comes from the existing portfolio accounting. Saving follows this device’s normal Cloud Sync.</p>
+        <p class="ytd-form-note">Modified Dietz is a day-weighted estimate, not exact TWR. An opening anchor cannot reconstruct missing daily NAV history. Current app NAV uses existing accounting; a brokerage snapshot replaces only the performance endpoint. Saving follows this device’s normal Cloud Sync.</p>
       </form></div>`;
       document.body.appendChild(modal);byId('ytdClose').addEventListener('click',()=>closeModal('ytdModal'));modal.addEventListener('click',e=>{if(e.target===modal)closeModal('ytdModal');});
       byId('ytdYear').addEventListener('change',loadEditor);byId('ytdAddFlow').addEventListener('click',()=>addFlow());byId('ytdSave').addEventListener('click',saveEditor);
