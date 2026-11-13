@@ -14,7 +14,15 @@ Modified Dietz return = investment P/L / (opening NAV + sum of day-weighted sign
 
 Current NAV comes from the existing accounting functions and is converted to the profile currency with the app's current FX. Opening NAV and flows must already be expressed in that currency at their respective dates; current FX is not retroactively applied to them. Brokerage-accurate NAV and complete external flows are prerequisites. Retained dividends, fees, taxes, interest, stock trades and FX exchanges are not external flows. No transaction is created, edited, reconciled or imported by this feature. Existing lifetime capital, cash, holdings and average-cost behavior is unchanged.
 
-The explicit flow list replaces transaction-derived flows only for that enabled YTD profile. It is never added to Deposit/Withdrawal transactions. Users must maintain it for later flows; a last-reviewed date is displayed, with a warning when it predates the valuation. Missing detailed trades do not produce an invented daily performance curve. VOO/QQQ comparisons use prior year-end adjusted close and latest quotes in USD and are labeled separately from the portfolio's reporting currency and return methodology.
+The explicit flow list replaces transaction-derived flows only for that enabled YTD profile. Without automatic flows enabled, users maintain the separate list for later flows; a last-reviewed date is displayed, with a warning when it predates the valuation. Missing detailed trades do not produce an invented daily performance curve. VOO/QQQ comparisons use prior year-end adjusted close and latest quotes in USD and are labeled separately from the portfolio's reporting currency and return methodology.
+
+### Optional automatic flows for Modified Dietz
+
+A Modified Dietz profile can explicitly opt into `automaticFlowsAfter: "YYYY-MM-DD"`. Its manual list contains verified external flows up to and including that cutoff; only later `Deposit` / `Withdrawal` records for the same portfolio are read automatically. The cutoff may be the prior year end to read all current-year flows. Earlier initialization deposits are excluded, and overlapping manual flows are rejected. Profiles without this field retain their previous behavior.
+
+This keeps the original whole-year Modified Dietz calculation, using the prior year-end NAV and current app NAV (or the explicitly chosen dated snapshot). There is no brokerage return anchor, NAV alignment or cash correction. Prices, trades, dividends and expenses affect NAV; only genuine external funding affects flows. Future-dated records are excluded until their date. Automatic foreign-currency flows use saved/live FX and are estimates. The source transaction and accounting state are never changed; transfer annotations remain in the profile. A dated snapshot still stays fixed even with automatic flows enabled. All required transactions after the cutoff must be recorded, and backdated corrections on or before it must be reflected in the historical manual list.
+
+The editor provides a separate opt-in and cutoff, previews later flows as read-only entries, and permits transfer annotations. Combined return normalizes automatic and manual profiles before summing NAV and matching internal transfers; percentages are never averaged. Code deployment never enables this option for an existing portfolio.
 
 ## Aggregation
 

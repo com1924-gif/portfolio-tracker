@@ -138,6 +138,32 @@ try{
  assert.match(await linked.locator('#overallReturnNote').innerText(),/percentages are not averaged/);
  console.log('PASS: automatic continuation, no NAV alignment gain, later deposit, sale neutrality, market gain, currency invariance and transfer notes without transaction edits.');
 
+ const automatic=await makePage('new');await performance(automatic);await setProfile(automatic);
+ const automaticBefore=await accounting(automatic),otherAutomaticBefore=await automatic.evaluate(()=>JSON.stringify(state.accounts[1]));
+ await automatic.locator('#ytdSettingsBtn').click();await automatic.locator('#ytdAutomaticEnabled').check();
+ await automatic.locator('#ytdAutomaticAfter').fill('2026-11-12');await automatic.locator('#ytdAutomaticAfter').dispatchEvent('change');
+ await automatic.locator('#ytdReviewed').fill('2026-11-12');await automatic.locator('#ytdSave').click();
+ assert.equal(await automatic.locator('#ytdModal').isVisible(),false,'automatic Dietz settings did not save');
+ assert.equal(await accounting(automatic),automaticBefore,'automatic Dietz changed accounting');
+ const automaticStart=await automatic.evaluate(()=>PortfolioYtdAnchor.resultFor('one'));
+ assert.ok(Math.abs(automaticStart.profit+31)<1e-8);assert.equal(automaticStart.autoFlowCount,0);assert.equal(automaticStart.staleFlows,false);
+ await automatic.evaluate(()=>{state.transactions.push({id:'auto-deposit',accountId:'one',type:'Deposit',currency:'USD',amount:40,date:'2026-11-13'});save();renderAll();});
+ let automaticResult=await automatic.evaluate(()=>PortfolioYtdAnchor.resultFor('one'));
+ assert.equal(automaticResult.autoFlowCount,1);assert.ok(Math.abs(automaticResult.returnPct-automaticStart.returnPct)<1e-8,'new deposit became a Dietz gain');
+ await automatic.evaluate(()=>{state.transactions.push({id:'auto-withdrawal',accountId:'one',type:'Withdrawal',currency:'USD',amount:10,date:'2026-11-13'});state.assets[0].price=13;save();renderAll();});
+ automaticResult=await automatic.evaluate(()=>PortfolioYtdAnchor.resultFor('one'));assert.equal(automaticResult.autoFlowCount,2);assert.ok(Math.abs(automaticResult.profit+21)<1e-8);
+ await automatic.locator('#portfolioCurrency').selectOption('USD');
+ assert.ok(Math.abs((await automatic.evaluate(()=>PortfolioYtdAnchor.resultFor('one'))).returnPct-automaticResult.returnPct)<1e-8);
+ await automatic.locator('#ytdSettingsBtn').click();assert.equal(await automatic.locator('#ytdAutomaticEnabled').isChecked(),true);
+ assert.equal(await automatic.locator('#ytdAutomaticAfter').inputValue(),'2026-11-12');assert.equal(await automatic.locator('#ytdAutoFlows .ytd-flow').count(),2);
+ assert.equal(await automatic.locator('#ytdAutoFlows .ytd-amount').first().isDisabled(),true);
+ const autoTx=await automatic.evaluate(()=>JSON.stringify(state.transactions));
+ await automatic.locator('#ytdAutoFlows .ytd-counterparty').first().selectOption('two');await automatic.locator('#ytdAutoFlows .ytd-transfer').first().fill('automatic-transfer');await automatic.locator('#ytdSave').click();
+ assert.equal(await automatic.evaluate(()=>JSON.stringify(state.transactions)),autoTx);assert.equal(await automatic.evaluate(()=>JSON.stringify(state.accounts[1])),otherAutomaticBefore);
+ await automatic.locator('#ytdSettingsBtn').click();await automatic.locator('#ytdAutomaticEnabled').uncheck();await automatic.locator('#ytdSave').click();
+ assert.equal(await automatic.evaluate(()=>PortfolioYtdAnchor.resultFor('one').autoFlowCount),undefined);
+ console.log('PASS: optional Dietz cutoff, initialization exclusion, later deposit/withdrawal, live NAV, currency, editor round trip, read-only transfer annotations and disable.');
+
  const baselineMobile=await makePage('base',{mobile:true});await performance(baselineMobile);
  const baselineWidth=await baselineMobile.evaluate(()=>document.documentElement.scrollWidth);
  const mobile=await makePage('new',{mobile:true});await performance(mobile);await mobile.locator('#ytdSettingsBtn').click();await mobile.locator('#ytdEnabled').check();await mobile.locator('#ytdOpening').fill('0');await mobile.locator('#ytdAddFlow').click();

@@ -76,7 +76,7 @@ test('existing cloud encryption and load/backup normalizers preserve optional pr
   const backup=source.match(/  function validateBackupState\(candidate\)\{[\s\S]*?\n  \}/)[0];
   const ctx=vm.createContext({crypto:webcrypto,TextEncoder,TextDecoder,structuredClone,btoa:s=>Buffer.from(s,'binary').toString('base64'),atob:s=>Buffer.from(s,'base64').toString('binary')});
   vm.runInContext(cryptoSource+normalize+backup,ctx);
-  const state={settings:{fx:{USD:7.8}},accounts:[{id:'one',performanceProfiles:{2024:profile(),2025:{...linkedProfile(),anchor:{date:'2025-02-19',nav:100,appNav:90,returnPct:25},openingAsOf:'2024-12-31',flowsCompleteThrough:'2025-02-19'}}}],assets:[],transactions:[],fx:[]};
+  const state={settings:{fx:{USD:7.8}},accounts:[{id:'one',performanceProfiles:{2024:profile({automaticFlowsAfter:'2024-02-19'}),2025:{...linkedProfile(),anchor:{date:'2025-02-19',nav:100,appNav:90,returnPct:25},openingAsOf:'2024-12-31',flowsCompleteThrough:'2025-02-19'}}}],assets:[],transactions:[],fx:[]};
   const key='synthetic-key-a-'.padEnd(43,'a'),other='synthetic-key-b-'.padEnd(43,'b');
   const encrypted=await ctx.encryptState(key,state);
   assert.ok(!JSON.stringify(encrypted).includes('openingNav'));
@@ -159,5 +159,49 @@ test('automatic transfer notes cancel only matched flows inside the aggregate',(
     {id:'two',profile:b,endNav:110,source:source([cash('in','2024-03-15',20,'Deposit',{accountId:'two'})],{accountId:'two'})}];
   const before=JSON.stringify(records),r=api.aggregate(records,2024,'2024-04-09');
   assert.equal(r.ok,true);approx(r.netFlows,0);assert.equal(r.internalTransferPairs,1);assert.equal(JSON.stringify(records),before);
+  records[1].source.transactions[0].date='2024-03-16';assert.equal(api.aggregate(records,2024,'2024-04-09').ok,false);
+});
+
+test('optional Dietz automatic flows exclude initialization and replace only later cash flows',()=>{
+  const p=profile({automaticFlowsAfter:'2024-02-19',flowsCompleteThrough:'2024-02-19',externalFlows:[{id:'verified',date:'2024-01-10',amount:20}]}),
+    s=source([cash('old','2024-01-10',900),cash('cutoff','2024-02-19',800),cash('new','2024-03-15',50),
+      cash('withdraw','2024-03-20',10,'Withdrawal'),cash('future','2024-05-01',100),cash('other','2024-03-15',100,'Deposit',{accountId:'two'}),
+      ...['Buy','Sell','Dividend','Interest','Margin Interest','Tax','Fee','FX'].map(type=>cash(type,'2024-03-15',999,type))]);
+  const before=JSON.stringify({p,s}),r=api.calculate(p,2024,'2024-04-09',170,s);
+  const expected=api.calculate(profile({externalFlows:[...p.externalFlows,{id:'new',date:'2024-03-15',amount:50},{id:'out',date:'2024-03-20',amount:-10}]}),2024,'2024-04-09',170);
+  assert.equal(r.ok,true);approx(r.netFlows,60);approx(r.profit,10);approx(r.returnPct,expected.returnPct);assert.equal(r.autoFlowCount,2);assert.equal(r.staleFlows,false);
+  assert.equal(JSON.stringify({p,s}),before);
+  const manual=api.calculate(profile({externalFlows:p.externalFlows}),2024,'2024-04-09',170,s);approx(manual.netFlows,20);assert.equal(manual.autoFlowCount,undefined);
+  approx(api.calculate(p,2024,'2024-02-19',120,s).profit,0);
+});
+test('Dietz automatic deposits and withdrawals change capital without creating investment profit',()=>{
+  const p=profile({automaticFlowsAfter:'2024-02-19',flowsCompleteThrough:'2024-02-19'});
+  for(const [type,amount,end] of [['Deposit',50,150],['Withdrawal',30,70]]){
+    const r=api.calculate(p,2024,'2024-04-09',end,source([cash(type,'2024-03-15',amount,type)]));
+    assert.equal(r.ok,true);approx(r.profit,0);approx(r.returnPct,0);
+  }
+  const foreign=api.calculate(p,2024,'2024-04-09',120,source([cash('foreign','2024-03-15',10,'Deposit',{currency:'EUR'})]));
+  approx(foreign.netFlows,20);assert.equal(foreign.foreignFlows,true);
+  assert.equal(api.calculate(p,2024,'2024-04-09',120,source([cash('foreign','2024-03-15',10,'Deposit',{currency:'EUR'})],{rates:{USD:1}})).ok,false);
+});
+test('Dietz automatic settings reject overlaps, invalid cutoffs and missing transaction context',()=>{
+  const p=profile({automaticFlowsAfter:'2024-02-19',flowsCompleteThrough:'2024-02-19'});
+  for(const override of [{automaticFlowsAfter:''},{automaticFlowsAfter:'2024-02-30'},{automaticFlowsAfter:'2023-12-30'},
+    {flowsCompleteThrough:'2024-02-18'},{externalFlows:[{id:'overlap',date:'2024-02-20',amount:1}]}]){
+    assert.equal(api.calculate({...p,...override},2024,'2024-04-09',100,source()).ok,false);
+  }
+  assert.equal(api.calculate(p,2024,'2024-04-09',100).ok,false);
+  assert.equal(api.calculate(p,2024,'2024-04-09',100,source([cash('dup','2024-03-15',1),cash('dup','2024-03-16',1)])).ok,false);
+  assert.equal(api.calculate(linkedProfile({automaticFlowsAfter:'2024-02-19'}),2024,'2024-04-09',100,source()).ok,false);
+  const allYear=profile({automaticFlowsAfter:'2023-12-31',flowsCompleteThrough:'2024-01-01'});
+  approx(api.calculate(allYear,2024,'2024-04-09',120,source([cash('jan','2024-01-01',20)])).profit,0);
+});
+test('Dietz aggregate includes automatic flows and cancels paired transfers without averaging',()=>{
+  const a=profile({automaticFlowsAfter:'2024-02-19',flowsCompleteThrough:'2024-02-19',autoFlowTransfers:{out:{counterpartyId:'two',transferId:'pair'}}}),
+    b=profile({automaticFlowsAfter:'2024-02-19',flowsCompleteThrough:'2024-02-19',autoFlowTransfers:{in:{counterpartyId:'one',transferId:'pair'}}});
+  const records=[{id:'one',profile:a,endNav:90,source:source([cash('out','2024-03-15',20,'Withdrawal')])},
+    {id:'two',profile:b,endNav:160,source:source([cash('in','2024-03-15',20,'Deposit',{accountId:'two'}),cash('deposit','2024-03-15',30,'Deposit',{accountId:'two'})],{accountId:'two'})}];
+  const before=JSON.stringify(records),r=api.aggregate(records,2024,'2024-04-09');
+  assert.equal(r.ok,true);approx(r.netFlows,30);approx(r.profit,20);approx(r.denominator,207.5);assert.equal(r.internalTransferPairs,1);assert.equal(JSON.stringify(records),before);
   records[1].source.transactions[0].date='2024-03-16';assert.equal(api.aggregate(records,2024,'2024-04-09').ok,false);
 });
