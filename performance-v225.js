@@ -83,6 +83,7 @@
 
     document.getElementById('refreshPerformanceBtn')?.addEventListener('click',()=>renderBenchmark({force:true}));
     renderBenchmarkPeriodButtons();
+    window.PortfolioYtdAnchor?.install();
   }
 
   function renderBenchmarkPeriodButtons(){

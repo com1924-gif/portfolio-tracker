@@ -65,7 +65,7 @@ const allState=page=>page.evaluate(()=>JSON.stringify(state));
 async function performance(page){await page.evaluate(()=>openPortfolio('one'));await page.locator('[data-tab="performance"]').click();await page.waitForTimeout(400);}
 async function setProfile(page,on=true){
  await page.locator('#ytdSettingsBtn').click();await page.locator('#ytdEnabled').setChecked(on);
- if(on){await page.locator('#ytdCurrency').selectOption('USD');await page.locator('#ytdOpening').fill('100');await page.locator('#ytdSource').fill('Synthetic verification');
+ if(on){await page.locator('#ytdCurrency').selectOption('USD');await page.locator('#ytdNavSource').selectOption('app');await page.locator('#ytdOpening').fill('100');await page.locator('#ytdSource').fill('Synthetic verification');
   if(await page.locator('#ytdFlows .ytd-flow').count()===0){await page.locator('#ytdAddFlow').click();await page.locator('.ytd-date').fill('2026-05-01');await page.locator('.ytd-amount').fill('50');}
  }
  await page.locator('#ytdSave').click();await page.waitForTimeout(250);
@@ -89,6 +89,8 @@ try{
  await modern.locator('#portfolioCurrency').selectOption('USD');await modern.waitForTimeout(250);
  assert.ok(Math.abs((await modern.evaluate(()=>PortfolioYtdAnchor.resultFor('one'))).returnPct-rate)<1e-8,'display currency changed anchored rate');
  await modern.locator('#portfolioCurrency').selectOption('HKD');await modern.waitForTimeout(250);
+ await modern.locator('#ytdSettingsBtn').click();await modern.locator('#ytdNavSource').selectOption('snapshot');await modern.locator('#ytdNavDate').fill('2026-11-12');await modern.locator('#ytdNavAmount').fill('160');await modern.locator('#ytdSave').click();await modern.waitForTimeout(250);
+ const snapshot=await modern.evaluate(()=>PortfolioYtdAnchor.resultFor('one'));assert.equal(snapshot.asOf,'2026-11-12');assert.equal(snapshot.profit,10);assert.equal(await accounting(modern),before,'snapshot modified accounting');
  await modern.evaluate(()=>goHome());await modern.locator('.overall-return-tab[data-mode="performance"]').click();await modern.locator('.overall-return-period[data-period="YTD"]').click();
  assert.match(await modern.locator('#overallReturnLabel').innerText(),/Enabled portfolios only/);
  assert.match(await modern.locator('#overallReturnSub').innerText(),/1\/2/);

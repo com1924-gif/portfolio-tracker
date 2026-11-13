@@ -17,6 +17,8 @@
     if(profile.openingAsOf!==`${Number(year)-1}-12-31`)errors.push('Opening NAV must be the prior year-end net assets.');
     if(!Number.isFinite(number(profile.openingNav))||number(profile.openingNav)<0)errors.push('Opening NAV must be a number of zero or more.');
     if(!/^[A-Z]{3}$/.test(profile.currency||''))errors.push('Choose a reporting currency.');
+    if(profile.navSource&&!['app','snapshot'].includes(profile.navSource))errors.push('Choose a supported NAV source.');
+    if(profile.navSource==='snapshot'&&(!Number.isFinite(day(profile.navSnapshot?.date))||profile.navSnapshot.date.slice(0,4)!==String(year)||!Number.isFinite(number(profile.navSnapshot?.amount))))errors.push('A brokerage NAV snapshot needs a valid date and net asset amount for this year.');
     if(!Array.isArray(profile.externalFlows))errors.push('External flows must be a list.');
     const ids=new Set();
     for(const flow of Array.isArray(profile.externalFlows)?profile.externalFlows:[]){
@@ -107,7 +109,13 @@
   }
   function resultFor(id,asOf=today()){
     const year=asOf.slice(0,4),p=enabled(id,year);
-    return p?calculate(p,year,asOf,currentNav(id,p.currency)):null;
+    if(!p)return null;
+    const endpoint=endpointFor(id,p,asOf);
+    return {...calculate(p,year,endpoint.asOf,endpoint.nav),navSource:p.navSource||'app'};
+  }
+  function endpointFor(id,p,asOf=today()){
+    if(p.navSource==='snapshot')return {asOf:p.navSnapshot?.date||'',nav:p.navSnapshot?.date<=asOf?number(p.navSnapshot.amount):NaN};
+    return {asOf,nav:currentNav(id,p.currency)};
   }
   api.profile=enabled;api.resultFor=resultFor;
 
@@ -126,7 +134,7 @@
 
   function snapshotHtml(r){
     if(!r?.ok)return `<div class="ytd-snapshot"><strong>YTD anchor needs attention</strong><div class="ytd-error">${escape(r?.errors?.join('\n')||'NAV unavailable.')}</div><p class="ytd-explanation">The recorded transaction calculation is unchanged. An enabled but incomplete anchor is not replaced with a tracked-period estimate.</p></div>`;
-    const rows=[['Opening NAV · '+r.openingAsOf,fmt(r.openingNav,r.currency)],['Current NAV · '+r.asOf,fmt(r.endNav,r.currency)],
+    const rows=[['Opening NAV · '+r.openingAsOf,fmt(r.openingNav,r.currency)],[(r.navSource==='snapshot'?'Brokerage NAV snapshot · ':'Current NAV · ')+r.asOf,fmt(r.endNav,r.currency)],
       ['External contributions',fmt(r.deposits,r.currency)],['External withdrawals',fmt(r.withdrawals,r.currency)],['YTD investment P/L',signMoney(r.profit,r.currency)]];
     return `<div class="ytd-snapshot"><dl>${rows.map(([k,v])=>`<dt>${escape(k)}</dt><dd>${escape(v)}</dd>`).join('')}</dl>
       <div class="ytd-explanation">${escape(r.returnUnavailable||'Modified Dietz return: investment P/L divided by opening NAV plus day-weighted external flows. Not annualized; not exact TWR.')}
@@ -134,15 +142,15 @@
   }
   function methodNote(r){
     if(!r?.ok)return 'Correct this portfolio’s YTD settings to show its anchored return.';
-    return `YTD uses this portfolio’s optional opening NAV and separate external-flow list in ${r.currency}. Existing Deposit / Withdrawal transactions are not added to that list. Current NAV uses the existing holdings, cash and saved/live FX. Brokerage-accurate NAV and complete flows are required. Fees, tax, dividends and interest retained in the account are reflected in NAV and are not deducted again. Large flows and volatile returns can reduce Modified Dietz accuracy.`;
+    return `YTD uses this portfolio’s optional opening NAV and separate external-flow list in ${r.currency}. Existing Deposit / Withdrawal transactions are not added to that list. ${r.navSource==='snapshot'?'Closing NAV is a dated brokerage snapshot and remains fixed until updated.':'Current NAV uses the existing holdings, cash and saved/live FX.'} Brokerage-accurate NAV and complete flows are required. Fees, tax, dividends and interest retained in the account are reflected in NAV and are not deducted again. Large flows and volatile returns can reduce Modified Dietz accuracy.`;
   }
   function legendHtml(r,bench={}){
     return [{label:`Portfolio · ${r?.currency||''} Modified Dietz`,value:r?.ok?r.returnPct:null},
       {label:'VOO · USD total return',value:bench.VOO},{label:'QQQ · USD total return',value:bench.QQQ}].map(v=>
       `<div class="benchmark-legend-item"><span>${escape(v.label)}</span><strong class="${v.value==null?'':v.value<0?'negative':'positive'}">${percent(v.value)}</strong></div>`).join('');
   }
-  async function benchmarks(year,{force=false}={}){
-    const cached=benchmarkCache.get(year);
+  async function benchmarks(year,asOf,{force=false}={}){
+    const key=year+'|'+asOf,cached=benchmarkCache.get(key);
     if(!force&&cached&&Date.now()-cached.time<5*60*1000)return cached.value;
     const base='https://portfolio-tracker-quotes.vercel.app/';
     const [hr,qr]=await Promise.all([fetch(`${base}?symbols=VOO%2CQQQ&mode=history&start=${Number(year)-1}-12-15`),fetch(`${base}?symbols=VOO%2CQQQ`)]);
@@ -150,13 +158,13 @@
     const history=(await hr.json()).history||{},quotes=(await qr.json()).quotes||{},value={};
     for(const symbol of ['VOO','QQQ']){
       const points=(history[symbol]||[]).filter(p=>p?.date&&number(p.close)>0).slice().sort((a,b)=>a.date.localeCompare(b.date));
-      const start=points.filter(p=>p.date<`${year}-01-01`).at(-1),last=points.filter(p=>p.date<=today()).at(-1);
+      const start=points.filter(p=>p.date<`${year}-01-01`).at(-1),last=points.filter(p=>p.date<=asOf).at(-1);
       if(!start||!last)continue;
       const adjusted=p=>number(p.adjClose)>0?number(p.adjClose):number(p.close);
-      const live=number(quotes[symbol]?.price),end=live>0?live*adjusted(last)/number(last.close):adjusted(last);
+      const live=number(quotes[symbol]?.price),end=asOf===today()&&live>0?live*adjusted(last)/number(last.close):adjusted(last);
       value[symbol]=(end/adjusted(start)-1)*100;
     }
-    benchmarkCache.set(year,{time:Date.now(),value});return value;
+    benchmarkCache.set(key,{time:Date.now(),value});return value;
   }
   function renderPortfolio(id,period,{force=false}={}){
     if(period!=='YTD'||!enabled(id))return false;
@@ -165,8 +173,8 @@
     const seq=++portfolioSequence,r=resultFor(id),chart=byId('benchmarkChart'),legend=byId('benchmarkLegend'),note=byId('benchmarkNote');
     if(chart)chart.innerHTML=snapshotHtml(r);
     if(legend)legend.innerHTML=legendHtml(r);
-    if(note)note.textContent=methodNote(r)+' Benchmarks use prior year-end adjusted close and latest quotes in USD; their currency and return methodology may differ from the portfolio.';
-    if(r?.ok)benchmarks(yearNow(),{force}).then(bench=>{
+    if(note)note.textContent=methodNote(r)+` Benchmarks use prior year-end adjusted close and quotes up to ${r?.asOf||'the valuation date'} in USD; their currency and return methodology may differ from the portfolio.`;
+    if(r?.ok)benchmarks(yearNow(),r.asOf,{force}).then(bench=>{
       if(seq!==portfolioSequence||currentPortfolioId!==id||!enabled(id)||byId('benchmarkPeriods')?.querySelector('.active')?.dataset.period!=='YTD')return;
       if(legend)legend.innerHTML=legendHtml(resultFor(id),bench);
     }).catch(()=>{if(seq===portfolioSequence&&currentPortfolioId===id&&enabled(id)&&byId('benchmarkPeriods')?.querySelector('.active')?.dataset.period==='YTD'&&note)note.textContent+=' Benchmarks are temporarily unavailable; the anchored portfolio calculation is unaffected.';});
@@ -179,7 +187,10 @@
     if(mode!=='performance'||period!=='YTD')return false;
     const active=activeAccounts(),selected=active.filter(a=>enabled(a.id));
     if(!selected.length)return false;
-    const year=yearNow(),asOf=today(),r=aggregate(selected.map(a=>({id:a.id,profile:enabled(a.id),endNav:currentNav(a.id,enabled(a.id).currency)})),year,asOf);
+    const year=yearNow(),records=selected.map(a=>({id:a.id,profile:enabled(a.id),...endpointFor(a.id,enabled(a.id))}));
+    const dates=new Set(records.map(r=>r.asOf));
+    const r=dates.size===1?aggregate(records.map(r=>({...r,endNav:r.nav})),year,records[0].asOf):{ok:false,errors:['Use the same NAV valuation date for every enabled portfolio before calculating the aggregate.']};
+    if(records.some(r=>r.profile.navSource==='snapshot'))r.navSource='snapshot';
     const hero=byId('overallReturnHero'),sub=byId('overallReturnSub'),label=byId('overallReturnLabel'),chart=byId('overallReturnChart'),note=byId('overallReturnNote');
     if(hero){hero.textContent=r.ok?percent(r.returnPct):'—';hero.className=`overall-return-hero ${r.ok&&r.returnPct!=null?r.returnPct<0?'negative':'positive':''}`;}
     if(label)label.textContent=selected.length===active.length?'All portfolios · Anchored YTD':'Enabled portfolios only · Anchored YTD';
@@ -208,6 +219,7 @@
     const select=byId('ytdCurrency');select.innerHTML=Object.keys(getState().settings.fx).filter(c=>/^[A-Z]{3}$/.test(c)).map(c=>`<option>${escape(c)}</option>`).join('');
     if(p?.currency&&!Array.from(select.options).some(o=>o.value===p.currency))select.add(new Option(p.currency,p.currency));
     select.value=p?.currency||getState().settings.baseCurrency||'HKD';
+    byId('ytdNavSource').value=p?.navSource||'app';byId('ytdNavDate').value=p?.navSnapshot?.date||today();byId('ytdNavAmount').value=p?.navSnapshot?.amount??'';updateNavInputs();
     byId('ytdReviewed').value=p?.flowsCompleteThrough||(year===yearNow()?today():`${year}-12-31`);
     byId('ytdSource').value=p?.source||'';byId('ytdFlows').innerHTML='';byId('ytdError').textContent='';
     for(const f of p?.externalFlows||[])addFlow(f);
@@ -216,6 +228,7 @@
     if(!currentPortfolioId)return;
     editAccountId=currentPortfolioId;byId('ytdAccountName').textContent=account(editAccountId)?.name||'Portfolio';byId('ytdYear').value=yearNow();loadEditor();openModal('ytdModal');
   }
+  function updateNavInputs(){byId('ytdSnapshotInputs').classList.toggle('hidden',byId('ytdNavSource').value!=='snapshot');}
   function saveEditor(){
     const a=account(editAccountId),year=byId('ytdYear').value;if(!a)return;
     const previous=a.performanceProfiles,existing=previous?.[year],isEnabled=byId('ytdEnabled').checked;
@@ -223,11 +236,13 @@
     if(!isEnabled&&!existing){closeModal('ytdModal');return;}
     const profile=isEnabled?{version:1,enabled:true,method:METHOD,openingAsOf:`${Number(year)-1}-12-31`,currency:byId('ytdCurrency').value,
       openingNav:number(byId('ytdOpening').value),flowsCompleteThrough:byId('ytdReviewed').value,source:byId('ytdSource').value.trim(),
+      navSource:byId('ytdNavSource').value,navSnapshot:byId('ytdNavSource').value==='snapshot'?{date:byId('ytdNavDate').value,amount:number(byId('ytdNavAmount').value)}:null,
       externalFlows:Array.from(byId('ytdFlows').children).map(row=>({id:row.dataset.flowId,date:row.querySelector('.ytd-date').value,amount:number(row.querySelector('.ytd-amount').value),
         note:row.querySelector('.ytd-note').value.trim(),counterpartyId:row.querySelector('.ytd-counterparty').value||null,transferId:row.querySelector('.ytd-transfer').value.trim()||null}))}: {...existing,enabled:false};
     const errors=isEnabled?validate(profile,year):[];
     if(isEnabled&&profile.externalFlows.some(f=>f.date>today()))errors.push('Future external flows cannot be included as actuals.');
     if(isEnabled&&profile.flowsCompleteThrough>today())errors.push('Flow review date cannot be in the future.');
+    if(isEnabled&&profile.navSource==='snapshot'&&profile.navSnapshot.date>today())errors.push('NAV valuation date cannot be in the future.');
     if(isEnabled&&profile.externalFlows.some(f=>f.date>profile.flowsCompleteThrough))errors.push('Flow review date must cover every entered flow.');
     if(errors.length){byId('ytdError').textContent=[...new Set(errors)].join('\n');return;}
     try{
@@ -250,9 +265,9 @@
     }catch{el.textContent='Sync document fingerprint unavailable on this device.';}
   }
   function install(){
-    const actions=document.querySelector('.portfolio-header-actions');
+    const actions=document.querySelector('#tab-performance > .section-head');
     if(actions&&!byId('ytdSettingsBtn')){
-      const btn=document.createElement('button');btn.id='ytdSettingsBtn';btn.className='icon-text-btn';btn.type='button';btn.textContent='YTD settings';btn.addEventListener('click',openEditor);actions.prepend(btn);
+      const btn=document.createElement('button');btn.id='ytdSettingsBtn';btn.className='icon-text-btn';btn.type='button';btn.textContent='YTD settings';btn.addEventListener('click',openEditor);actions.appendChild(btn);
     }
     if(!byId('ytdModal')){
       const modal=document.createElement('div');modal.id='ytdModal';modal.className='modal-overlay hidden';
@@ -262,6 +277,8 @@
         <label><input id="ytdEnabled" type="checkbox"/>Enable only for this portfolio and year</label>
         <div class="ytd-form-note">Opening NAV means net assets at the prior year end, including cash and margin liabilities. This setting changes YTD performance only.</div>
         <label>Reporting currency<select id="ytdCurrency"></select></label><label>Opening NAV<input id="ytdOpening" type="number" step="any" min="0"/></label>
+        <label>Closing NAV source<select id="ytdNavSource"><option value="app">Current app NAV</option><option value="snapshot">Dated brokerage NAV snapshot</option></select></label>
+        <div id="ytdSnapshotInputs" class="hidden"><label>NAV valuation date<input id="ytdNavDate" type="date"/></label><label>Brokerage net assets · reporting currency<input id="ytdNavAmount" type="number" step="any"/></label><p class="ytd-form-note">This performance-only NAV stays fixed at the stated date until updated. It does not change cash, holdings or transactions.</p></div>
         <label>Source / reconciliation note<input id="ytdSource" maxlength="300"/></label>
         <h4>External flows for the whole year</h4><p class="ytd-form-note">Enter every contribution and withdrawal in the reporting currency, using its value on the flow date. This list replaces transaction-based flows for anchored YTD only. Do not include stock trades, retained dividends, fees, interest or currency exchanges. No transactions are imported or edited.</p>
         <div id="ytdFlows"></div><button id="ytdAddFlow" type="button" class="ghost-btn full">Add external flow</button>
@@ -272,10 +289,11 @@
       </form></div>`;
       document.body.appendChild(modal);byId('ytdClose').addEventListener('click',()=>closeModal('ytdModal'));modal.addEventListener('click',e=>{if(e.target===modal)closeModal('ytdModal');});
       byId('ytdYear').addEventListener('change',loadEditor);byId('ytdAddFlow').addEventListener('click',()=>addFlow());byId('ytdSave').addEventListener('click',saveEditor);
+      byId('ytdNavSource').addEventListener('change',updateNavInputs);
     }
     const sync=document.querySelector('#syncModal .modal-card');
     if(sync&&!byId('ytdSyncFingerprint')){const el=document.createElement('div');el.id='ytdSyncFingerprint';el.className='ytd-fingerprint';sync.appendChild(el);fingerprint();}
   }
-  install();
+  api.install=install;install();
   document.addEventListener('click',e=>{if(e.target.closest?.('#cloudSyncBtn,#connectSyncBtn,#createSyncBtn,#disconnectSyncBtn'))setTimeout(()=>{install();fingerprint();},1000);});
 })(typeof window==='undefined'?globalThis:window);

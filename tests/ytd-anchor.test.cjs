@@ -38,6 +38,12 @@ test('blank values, impossible dates and duplicate IDs remain explicit errors',(
 test('later dated actual flows do not affect an earlier valuation',()=>{
   const p=profile({externalFlows:[{id:'later',date:'2024-05-01',amount:100}]});approx(api.calculate(p,2024,'2024-04-09',110).profit,10);
 });
+
+test('dated brokerage NAV metadata must use a valid date and amount',()=>{
+  assert.equal(api.validate(profile({navSource:'snapshot',navSnapshot:{date:'2024-02-30',amount:160}}),2024).length>0,true);
+  assert.equal(api.validate(profile({navSource:'snapshot',navSnapshot:{date:'2024-04-01',amount:''}}),2024).length>0,true);
+  assert.equal(api.validate(profile({navSource:'snapshot',navSnapshot:{date:'2024-04-01',amount:0}}),2024).length,0);
+});
 test('aggregate cancels paired internal transfers and calculates from combined NAV',()=>{
   const a=profile({externalFlows:[{id:'a',date:'2024-02-19',amount:-50,counterpartyId:'b',transferId:'move'}]});
   const b=profile({externalFlows:[{id:'b',date:'2024-02-19',amount:50,counterpartyId:'a',transferId:'move'}]});

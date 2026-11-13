@@ -18,6 +18,8 @@ The explicit flow list replaces transaction-derived flows only for that enabled 
 
 ## Aggregation
 
+An optional `navSource: "snapshot"` and `navSnapshot: {date, amount}` use a dated brokerage NAV as the endpoint instead of the app NAV. The snapshot is performance-only and remains fixed until updated. Its date is displayed prominently, flows are cut off at that date, and benchmark prices are aligned to that date. This allows a verified brokerage NAV without correcting cash transactions or average cost. All enabled portfolios must have the same valuation date before their anchored returns can be aggregated.
+
 The anchored homepage YTD subtotal includes enabled active portfolios only and displays coverage and names. Portfolios with no profile retain their individual calculations. With no enabled profiles, the homepage follows its original path. Other periods and the Value view retain their original paths.
 
 All included profiles must use one reporting currency. Opening/ending NAVs and flows are combined before applying the formula; portfolio percentages are not averaged. A transfer is removed only if both included portfolios have reciprocal counterparties, a shared reference, matching dates and equal opposite amounts. A transfer outside the included group remains external. Unmatched, cross-date or unequal transfers block the aggregate instead of assuming cash-in-transit values.
