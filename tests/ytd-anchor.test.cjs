@@ -76,7 +76,7 @@ test('existing cloud encryption and load/backup normalizers preserve optional pr
   const backup=source.match(/  function validateBackupState\(candidate\)\{[\s\S]*?\n  \}/)[0];
   const ctx=vm.createContext({crypto:webcrypto,TextEncoder,TextDecoder,structuredClone,btoa:s=>Buffer.from(s,'binary').toString('base64'),atob:s=>Buffer.from(s,'base64').toString('binary')});
   vm.runInContext(cryptoSource+normalize+backup,ctx);
-  const state={settings:{fx:{USD:7.8}},accounts:[{id:'one',performanceProfiles:{2024:profile()}}],assets:[],transactions:[],fx:[]};
+  const state={settings:{fx:{USD:7.8}},accounts:[{id:'one',performanceProfiles:{2024:profile(),2025:{...linkedProfile(),anchor:{date:'2025-02-19',nav:100,appNav:90,returnPct:25},openingAsOf:'2024-12-31',flowsCompleteThrough:'2025-02-19'}}}],assets:[],transactions:[],fx:[]};
   const key='synthetic-key-a-'.padEnd(43,'a'),other='synthetic-key-b-'.padEnd(43,'b');
   const encrypted=await ctx.encryptState(key,state);
   assert.ok(!JSON.stringify(encrypted).includes('openingNav'));
@@ -86,4 +86,78 @@ test('existing cloud encryption and load/backup normalizers preserve optional pr
   await assert.rejects(ctx.decryptState(other,encrypted));
   const legacy=ctx.normalizeLoadedState({accounts:[{id:'old'}]});
   assert.equal(legacy.accounts[0].performanceProfiles,undefined);
+});
+
+function linkedProfile(overrides={}){return profile({method:'broker-linked-estimate',openingNav:80,navSource:'app',
+  anchor:{date:'2024-02-19',nav:100,appNav:90,returnPct:25},flowsCompleteThrough:'2024-02-19',...overrides});}
+const source=(transactions=[],overrides={})=>({accountId:'one',transactions,rates:{USD:1,EUR:2},...overrides});
+const cash=(id,date,amount,type='Deposit',other={})=>({id,accountId:'one',type,date,amount,currency:'USD',...other});
+
+test('broker-linked anchor compounds later gain and preserves one-time NAV alignment',()=>{
+  const p=linkedProfile(),s=source(),before=JSON.stringify({p,s});
+  const r=api.calculate(p,2024,'2024-04-09',100,s);
+  assert.equal(r.ok,true);approx(r.navAdjustment,10);approx(r.endNav,110);approx(r.periodProfit,10);
+  approx(r.periodReturnPct,10);approx(r.returnPct,37.5);approx(r.profit,30);
+  assert.equal(JSON.stringify({p,s}),before,'calculation changed accounting or profile');
+  const atAnchor=api.calculate(p,2024,'2024-02-19',999,s);approx(atAnchor.returnPct,25);approx(atAnchor.endNav,100);
+});
+test('later deposits and withdrawals are automatic and never create investment gains',()=>{
+  for(const [type,amount,end] of [['Deposit',50,140],['Withdrawal',30,60]]){
+    const r=api.calculate(linkedProfile(),2024,'2024-04-09',end,source([cash('new','2024-03-15',amount,type)]));
+    assert.equal(r.ok,true);approx(r.returnPct,25);approx(r.periodProfit,0);assert.equal(r.autoFlowCount,1);
+  }
+  const s=source([cash('new','2024-03-15',50)]);
+  const r=api.calculate(linkedProfile(),2024,'2024-04-09',150,s);
+  approx(r.periodDenominator,125);approx(r.periodReturnPct,8);approx(r.returnPct,35);
+});
+test('anchor-day, older, future and other-account transactions cannot be counted twice',()=>{
+  const p=linkedProfile({externalFlows:[{id:'historical',date:'2024-02-19',amount:20}]}),s=source([
+    cash('before','2024-01-01',200),cash('anchor','2024-02-19',20),cash('later','2024-05-01',200),
+    cash('other','2024-03-15',200,'Deposit',{accountId:'two'})]);
+  const r=api.calculate(p,2024,'2024-04-09',90,s);approx(r.netFlows,20);assert.equal(r.autoFlowCount,0);approx(r.returnPct,25);
+});
+test('trades, retained dividends, fees, interest and FX are excluded from automatic external flows',()=>{
+  const txs=['Buy','Sell','Dividend','Fee','Interest','Tax','Margin Interest','FX'].map(type=>cash(type,'2024-03-15',100,type));
+  const r=api.calculate(linkedProfile(),2024,'2024-04-09',90,source(txs));
+  assert.equal(r.autoFlowCount,0);approx(r.returnPct,25);
+});
+test('foreign-currency automatic flows use available FX and fail explicitly when unavailable',()=>{
+  const txs=[cash('foreign','2024-03-15',10,'Deposit',{currency:'EUR'})];
+  const r=api.calculate(linkedProfile(),2024,'2024-04-09',110,source(txs));
+  approx(r.netFlows,20);approx(r.returnPct,25);assert.equal(r.foreignFlows,true);
+  assert.equal(api.calculate(linkedProfile(),2024,'2024-04-09',110,source(txs,{rates:{USD:1}})).ok,false);
+  assert.equal(api.calculate(linkedProfile(),2024,'2024-04-09',110,source(txs,{rates:{USD:-1,EUR:-2}})).ok,false);
+});
+test('linked settings reject overlapping manual flows, invalid anchors and missing transaction access',()=>{
+  const bad=[{externalFlows:[{id:'overlap',date:'2024-03-15',amount:5}]},
+    {anchor:{date:'2024-02-30',nav:100,appNav:90,returnPct:25}},
+    {anchor:{date:'2024-02-19',nav:0,appNav:90,returnPct:25}},
+    {anchor:{date:'2024-02-19',nav:100,appNav:'',returnPct:25}},
+    {anchor:{date:'2024-02-19',nav:100,appNav:90,returnPct:-101}},
+    {externalFlows:{}},{navSource:'snapshot',navSnapshot:{date:'2024-03-01',amount:100}}];
+  for(const override of bad)assert.equal(api.calculate(linkedProfile(override),2024,'2024-04-09',100,source()).ok,false);
+  assert.equal(api.calculate(linkedProfile(),2024,'2024-04-09',100).ok,false);
+  assert.equal(api.calculate(linkedProfile(),2024,'2024-01-01',100,source()).ok,false);
+  assert.equal(api.calculate(linkedProfile(),2024,'2024-04-09',100,source([cash('bad','2024-03-15',-5)])).ok,false);
+  assert.equal(api.calculate(linkedProfile(),2024,'2024-04-09',100,source([cash('same','2024-03-15',1),cash('same','2024-03-16',1)])).ok,false);
+});
+test('nonpositive capital after the anchor suppresses only the return percentage',()=>{
+  const r=api.calculate(linkedProfile(),2024,'2024-04-09',-110,source([cash('out','2024-02-20',200,'Withdrawal')]));
+  assert.equal(r.ok,true);assert.equal(r.returnPct,null);approx(r.periodProfit,0);
+});
+test('mixed-method aggregate uses combined NAV and flows rather than brokerage percentages',()=>{
+  const linked=linkedProfile(),records=[{id:'one',profile:linked,endNav:100,source:source()},
+    {id:'two',profile:profile({openingNav:120}),endNav:120}];
+  const r=api.aggregate(records,2024,'2024-04-09');assert.equal(r.ok,true);approx(r.profit,30);approx(r.returnPct,15);assert.equal(r.linkedCount,1);
+  const changed=api.aggregate([{...records[0],profile:{...linked,anchor:{...linked.anchor,returnPct:80}}},records[1]],2024,'2024-04-09');
+  approx(changed.returnPct,r.returnPct,'group averaged individual returns');
+});
+test('automatic transfer notes cancel only matched flows inside the aggregate',()=>{
+  const a=linkedProfile({autoFlowTransfers:{out:{counterpartyId:'two',transferId:'pair'}}}),
+    b=linkedProfile({autoFlowTransfers:{in:{counterpartyId:'one',transferId:'pair'}}});
+  const records=[{id:'one',profile:a,endNav:70,source:source([cash('out','2024-03-15',20,'Withdrawal')])},
+    {id:'two',profile:b,endNav:110,source:source([cash('in','2024-03-15',20,'Deposit',{accountId:'two'})],{accountId:'two'})}];
+  const before=JSON.stringify(records),r=api.aggregate(records,2024,'2024-04-09');
+  assert.equal(r.ok,true);approx(r.netFlows,0);assert.equal(r.internalTransferPairs,1);assert.equal(JSON.stringify(records),before);
+  records[1].source.transactions[0].date='2024-03-16';assert.equal(api.aggregate(records,2024,'2024-04-09').ok,false);
 });

@@ -70,6 +70,18 @@ async function setProfile(page,on=true){
  }
  await page.locator('#ytdSave').click();await page.waitForTimeout(250);
 }
+async function setLinkedProfile(page){
+ await page.locator('#ytdSettingsBtn').click();await page.locator('#ytdEnabled').check();
+ await page.locator('#ytdCurrency').selectOption('USD');await page.locator('#ytdMethod').selectOption('broker-linked-estimate');
+ await page.locator('#ytdOpening').fill('0');await page.locator('#ytdAnchorDate').fill('2026-11-12');await page.locator('#ytdAnchorDate').dispatchEvent('change');
+ await page.locator('#ytdAnchorReturn').fill('25');await page.locator('#ytdAnchorNav').fill('100');await page.locator('#ytdAppAnchorNav').fill('119');
+ await page.locator('#ytdReviewed').fill('2026-11-12');
+ await page.locator('#ytdFlows .ytd-remove').evaluateAll(buttons=>buttons.forEach(b=>b.click()));
+ await page.locator('#ytdAddFlow').click();await page.locator('#ytdFlows .ytd-date').fill('2026-01-10');await page.locator('#ytdFlows .ytd-amount').fill('100');
+ assert.equal(await page.locator('#ytdCaptureNav').isDisabled(),true,'past anchor used today’s app NAV');
+ await page.locator('#ytdSave').click();await page.waitForTimeout(250);
+ assert.equal(await page.locator('#ytdModal').isVisible(),false,'linked editor did not save');
+}
 try{
  const base=await makePage('base'),modern=await makePage('new');
  assert.equal(await allState(modern),await allState(base),'startup state changed without opt-in');
@@ -102,6 +114,30 @@ try{
  assert.equal(await accounting(modern),await accounting(base),'accounting differs after disabling');
  console.log('PASS: legacy startup/state/output equality; opt-in; accounting unchanged; flow source exclusivity; currency invariance; coverage; disable.');
 
+ const linked=await makePage('new');await performance(linked);const linkedBefore=await accounting(linked),otherLinkedBefore=await linked.evaluate(()=>JSON.stringify(state.accounts[1]));
+ await setLinkedProfile(linked);
+ assert.equal(await accounting(linked),linkedBefore,'linked profile changed accounting');
+ let linkedResult=await linked.evaluate(()=>PortfolioYtdAnchor.resultFor('one'));
+ assert.ok(Math.abs(linkedResult.returnPct-25)<1e-8);assert.ok(Math.abs(linkedResult.navAdjustment+19)<1e-8);
+ assert.match(await linked.locator('#benchmarkLegend').innerText(),/Broker-linked estimate/);
+ await linked.evaluate(()=>{state.transactions.push({id:'new-deposit',accountId:'one',type:'Deposit',currency:'USD',amount:50,date:'2026-11-13'});save();renderAll();});
+ linkedResult=await linked.evaluate(()=>PortfolioYtdAnchor.resultFor('one'));assert.equal(linkedResult.autoFlowCount,1);assert.ok(Math.abs(linkedResult.returnPct-25)<1e-8,'new deposit became a gain');
+ await linked.evaluate(()=>{state.transactions.push({id:'new-sale',accountId:'one',assetId:'asset_a',type:'Sell',currency:'USD',qty:5,price:12,fee:0,date:'2026-11-13'});save();renderAll();});
+ assert.ok(Math.abs((await linked.evaluate(()=>PortfolioYtdAnchor.resultFor('one'))).returnPct-25)<1e-8,'sale became an external contribution');
+ await linked.evaluate(()=>{state.assets[0].price=13;save();renderAll();});
+ assert.ok(Math.abs((await linked.evaluate(()=>PortfolioYtdAnchor.resultFor('one'))).returnPct-31.25)<1e-8,'market gain did not update automatically');
+ await linked.locator('#portfolioCurrency').selectOption('USD');await linked.waitForTimeout(150);
+ assert.ok(Math.abs((await linked.evaluate(()=>PortfolioYtdAnchor.resultFor('one'))).returnPct-31.25)<1e-8,'linked return changed with display currency');
+ const linkedTxBefore=await linked.evaluate(()=>JSON.stringify(state.transactions));
+ await linked.locator('#ytdSettingsBtn').click();assert.equal(await linked.locator('#ytdAutoFlows .ytd-flow').count(),1);
+ assert.equal(await linked.locator('#ytdAutoFlows .ytd-amount').isDisabled(),true);
+ await linked.locator('#ytdAutoFlows .ytd-counterparty').selectOption('two');await linked.locator('#ytdAutoFlows .ytd-transfer').fill('synthetic-transfer');await linked.locator('#ytdSave').click();
+ assert.equal(await linked.evaluate(()=>JSON.stringify(state.transactions)),linkedTxBefore,'transfer matching changed transactions');
+ assert.equal(await linked.evaluate(()=>JSON.stringify(state.accounts[1])),otherLinkedBefore,'linked settings changed another portfolio');
+ await linked.evaluate(()=>goHome());await linked.locator('.overall-return-tab[data-mode="performance"]').click();await linked.locator('.overall-return-period[data-period="YTD"]').click();
+ assert.match(await linked.locator('#overallReturnNote').innerText(),/percentages are not averaged/);
+ console.log('PASS: automatic continuation, no NAV alignment gain, later deposit, sale neutrality, market gain, currency invariance and transfer notes without transaction edits.');
+
  const baselineMobile=await makePage('base',{mobile:true});await performance(baselineMobile);
  const baselineWidth=await baselineMobile.evaluate(()=>document.documentElement.scrollWidth);
  const mobile=await makePage('new',{mobile:true});await performance(mobile);await mobile.locator('#ytdSettingsBtn').click();await mobile.locator('#ytdEnabled').check();await mobile.locator('#ytdOpening').fill('0');await mobile.locator('#ytdAddFlow').click();
@@ -112,6 +148,13 @@ try{
  await mobile.locator('#ytdSave').click();assert.equal(await mobile.evaluate(()=>PortfolioYtdAnchor.resultFor('one').ok),true);
  await mobile.locator('#tab-performance').screenshot({path:path.join(output,'ytd-mobile-result.png')});
  console.log('PASS: mobile editor layout, save and zero opening NAV.');
+ await mobile.locator('#ytdSettingsBtn').click();await mobile.locator('#ytdClose').click();await setLinkedProfile(mobile);
+ await mobile.locator('#ytdSettingsBtn').click();
+ const linkedWidths=await mobile.evaluate(()=>({screen:innerWidth,editor:document.querySelector('.ytd-editor').getBoundingClientRect().width,scroll:document.documentElement.scrollWidth}));
+ assert.ok(linkedWidths.editor<=linkedWidths.screen+1);assert.ok(linkedWidths.scroll<=baselineWidth+1);
+ await mobile.screenshot({path:path.join(output,'ytd-linked-mobile-editor.png'),fullPage:true});await mobile.locator('#ytdClose').click();
+ await mobile.locator('#tab-performance').screenshot({path:path.join(output,'ytd-linked-mobile-result.png')});
+ console.log('PASS: mobile automatic continuation editor and result.');
 
  const cloud=await makePage('new',{syncKey:keyA});await performance(cloud);await setProfile(cloud);await cloud.evaluate(()=>goHome());
  await cloud.locator('#cloudSyncBtn').click();await cloud.locator('#syncNowBtn').click();
@@ -129,6 +172,15 @@ try{
  const independent=await makePage('new');await independent.locator('#cloudSyncBtn').click();await independent.locator('#syncKeyInput').fill(keyB);await independent.locator('#connectSyncBtn').click();await independent.waitForTimeout(300);
  assert.equal(await independent.evaluate(()=>state.accounts.some(a=>a.performanceProfiles!==undefined)),false,'profile leaked to separate sync key');
  console.log('PASS: actual sync encryption/upload/download, separate-key isolation, fingerprint and JSON backup round trip.');
+ await cloud.locator('#closeSyncModalBtn').click().catch(()=>{});await performance(cloud);await setLinkedProfile(cloud);await cloud.evaluate(()=>goHome());
+ await cloud.locator('#cloudSyncBtn').click();await cloud.locator('#syncNowBtn').click();await cloud.waitForTimeout(500);
+ const linkedStored=await decrypt(keyA,docs.get(keyA).payload);
+ assert.equal(linkedStored.accounts[0].performanceProfiles['2026'].anchor.returnPct,25);assert.equal(linkedStored.accounts[0].performanceProfiles['2026'].method,'broker-linked-estimate');
+ assert.equal(JSON.stringify(docs.get(keyB)),untouchedB,'linked settings changed another encrypted document');
+ const linkedDownload=await makePage('new');await linkedDownload.locator('#cloudSyncBtn').click();await linkedDownload.locator('#syncKeyInput').fill(keyA);await linkedDownload.locator('#connectSyncBtn').click();
+ await linkedDownload.waitForFunction(()=>state.accounts[0].performanceProfiles?.['2026']?.method==='broker-linked-estimate');
+ assert.ok(Math.abs((await linkedDownload.evaluate(()=>PortfolioYtdAnchor.resultFor('one'))).returnPct-25)<1e-8);
+ console.log('PASS: broker-linked settings encrypted upload/download and separate-key isolation.');
  assert.deepEqual(errors,[],'browser runtime errors');
  console.log('PASS: no browser runtime errors.');
 }catch(error){

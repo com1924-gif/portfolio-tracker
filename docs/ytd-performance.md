@@ -33,3 +33,22 @@ The `YTD regression tests` workflow runs these checks in an isolated GitHub runn
 Deploying the code does not enable or populate any profile. Code rollback and user-state rollback are separate. A previous profile is saved locally under `portfolioTrackerYtdProfileSafetyV1` before an explicit settings save; normal cloud backups apply on sync. Restore the code with the pre-change rollback branch when needed; disabling a profile restores that portfolio's original performance path without editing any transactions.
 
 Method reference: [GIPS Standards Handbook for Firms, calculation methodology](https://www.gipsstandards.org/standards/gips-standards-for-firms/gips-standards-handbook-for-firms/). This application does not claim GIPS compliance.
+
+
+## Brokerage YTD anchor with automatic continuation
+
+The optional calculation mode `broker-linked-estimate` uses the same portfolio/year-owned profile. No migration or default calculation changes. Add `anchor: {date, returnPct, nav, appNav}`: brokerage YTD through that closing date, brokerage NAV at that close, and the app NAV at the same close. Leaving the app-NAV field blank saves the brokerage NAV as the assumed matching app NAV. A current-NAV capture button works only for a current-date anchor; it never labels today's valuation as a past closing valuation.
+
+The historical manual external-flow list ends at the anchor (inclusive). All later `Deposit` / `Withdrawal` transactions for this portfolio are read automatically through the valuation date. Anchor-day and earlier transaction flows are not added again. Trades, retained dividends, fees, interest and FX exchanges are not external flows. Newly recorded transactions are included without editing the profile. Foreign-currency automatic flows use current saved/live FX and are estimates; an unavailable rate produces an explicit error. No transaction is imported or changed.
+
+A fixed performance-only NAV alignment is `anchor.nav - anchor.appNav`. Performance NAV is current app NAV plus this alignment; accounting NAV is untouched. The alignment prevents a known starting discrepancy being mistaken for a subsequent gain, but cannot correct missing later transactions, stale prices, fees, interest or FX timing differences.
+
+After-anchor P/L = performance NAV - brokerage anchor NAV - later net external flows.
+
+After-anchor return = after-anchor P/L / (brokerage anchor NAV + day-weighted later external flows), with weights `(valuation day - flow day) / (valuation day - anchor day)` and end-of-day cash flows. On the anchor date the brokerage NAV and return are shown without a continuation period. A nonpositive after-anchor denominator suppresses the percentage.
+
+Linked YTD = `(1 + brokerage YTD / 100) * (1 + after-anchor return) - 1`. This is a brokerage return linked to a Modified Dietz estimate, not exact daily TWR. It requires no pre-anchor detailed trades, daily option-price reconstruction, recurring statements or screenshots. Current option prices still follow the app's existing manual-price behavior. Long periods with large flows and volatile returns can increase approximation error.
+
+YTD investment P/L continues to use the prior year-end NAV, full-year net flows and performance NAV. Combined portfolio return remains a whole-year Modified Dietz estimate from the sum of NAVs and flows; individual brokerage/linked percentages are never averaged or presented as a combined brokerage TWR. Every participating portfolio needs a common reporting currency and valuation date. Reciprocal internal transfers are matched as before. For automatic transaction-derived flows, optional `autoFlowTransfers[transactionId]: {counterpartyId, transferId}` annotations are stored in the performance profile; dates and amounts remain read-only and transaction state is unchanged.
+
+All settings use the existing encrypted Cloud Sync and JSON backup state. Distinct Sync Keys derive distinct documents; identical keys share state. The fingerprint can verify the actual document mapping without disclosing keys. Source inspection and synthetic isolation tests do not establish which document belongs to a named real user. Deploying code does not enable or populate any real user profile.

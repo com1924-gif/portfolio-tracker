@@ -2,7 +2,7 @@ name: YTD regression tests
 
 on:
   push:
-    branches: [main, feature/optional-ytd-anchor]
+    branches: [main, feature/optional-ytd-anchor, feature/automatic-ytd-anchor]
   pull_request:
     branches: [main]
 
