@@ -31,6 +31,13 @@
       if(flow.counterpartyId&&!String(flow.transferId||'').trim())errors.push('An inter-portfolio transfer needs a matching transfer reference.');
     }
     if(!Number.isFinite(day(profile.flowsCompleteThrough))||profile.flowsCompleteThrough<`${year}-01-01`||profile.flowsCompleteThrough>`${year}-12-31`)errors.push('Set the date through which the flow list has been reviewed.');
+    if(profile.automaticFlowsAfter!=null){
+      const cutoff=profile.automaticFlowsAfter;
+      if(profile.method!==METHOD)errors.push('A brokerage return anchor already defines its automatic-flow date.');
+      if(!Number.isFinite(day(cutoff))||cutoff<profile.openingAsOf||cutoff>`${year}-12-31`)errors.push('Choose a valid automatic-flow cutoff in this performance year or its prior year end.');
+      if(profile.flowsCompleteThrough<cutoff)errors.push('Review historical external flows through the automatic-flow cutoff.');
+      if((Array.isArray(profile.externalFlows)?profile.externalFlows:[]).some(f=>f?.date>cutoff))errors.push('Manual external flows must be on or before the automatic-flow cutoff.');
+    }
     if(profile.method===LINKED){
       const a=profile.anchor;
       if(!Number.isFinite(day(a?.date))||a.date.slice(0,4)!==String(year))errors.push('The return anchor needs a valid date in the selected year.');
@@ -45,6 +52,12 @@
   }
   function calculate(profile,year,asOf,endNav,source){
     if(profile?.method===LINKED)return calculateLinked(profile,year,asOf,endNav,source);
+    if(profile?.automaticFlowsAfter!=null){
+      const inputs=automaticInputs(profile,year,asOf,source,profile.automaticFlowsAfter);
+      if(!inputs.ok)return inputs;
+      return {...calculate(inputs.profile,year,asOf,endNav),automaticFlowsAfter:profile.automaticFlowsAfter,
+        autoFlowCount:inputs.flows.length,foreignFlows:inputs.foreignFlows};
+    }
     const errors=validate(profile,year);
     const first=day(profile?.openingAsOf),last=day(asOf),end=number(endNav);
     if(!Number.isFinite(last)||asOf.slice(0,4)!==String(year)||!(last>first))errors.push('Valuation date must be within the selected year.');
@@ -64,12 +77,11 @@
       returnUnavailable:denominator>0?'':'Return unavailable: day-weighted invested capital is zero or negative.',
       reviewedThrough:profile.flowsCompleteThrough,staleFlows:profile.flowsCompleteThrough<asOf};
   }
-  function linkedInputs(profile,year,asOf,appEndNav,source={}){
+  function automaticInputs(profile,year,asOf,source,cutoff){
     source=source||{};
-    const errors=validate(profile,year),a=profile?.anchor;
-    if(profile?.method!==LINKED)errors.push('Automatic continuation requires a brokerage return anchor.');
-    if(!Number.isFinite(day(asOf))||asOf.slice(0,4)!==String(year)||asOf<a?.date)errors.push('The valuation must be on or after the return anchor in the selected year.');
-    if(!Number.isFinite(number(appEndNav)))errors.push('Current app NAV is unavailable.');
+    const errors=validate(profile,year);
+    if(!Number.isFinite(day(asOf))||asOf.slice(0,4)!==String(year))errors.push('Valuation date must be within the selected year.');
+    if(!Number.isFinite(day(cutoff)))errors.push('Choose a valid automatic-flow cutoff.');
     if(!Array.isArray(source.transactions)||!source.accountId)errors.push('Automatic continuation needs this portfolio’s transaction records.');
     if(errors.length)return {ok:false,errors:[...new Set(errors)]};
     const flows=[],rates=source.rates||{};let foreignFlows=false;
@@ -77,7 +89,7 @@
       if(!t||typeof t!=='object'){errors.push('A transaction record is invalid.');continue;}
       if(t.accountId!==source.accountId||!['Deposit','Withdrawal'].includes(t.type))continue;
       if(!Number.isFinite(day(t.date))){errors.push('A deposit or withdrawal has an invalid date.');continue;}
-      if(t.date<=a.date||t.date>asOf)continue;
+      if(t.date<=cutoff||t.date>asOf)continue;
       const amount=number(t.amount),from=number(rates[t.currency]),to=number(rates[profile.currency]);
       const rate=t.currency===profile.currency?1:from>0&&to>0?from/to:NaN;
       if(!t.id||!Number.isFinite(amount)||amount<0||!(rate>0)||!Number.isFinite(rate)){
@@ -89,12 +101,23 @@
         note:'Automatic '+t.type,counterpartyId:transfer.counterpartyId||null,transferId:transfer.transferId||null});
     }
     const normalized={...profile,method:METHOD,externalFlows:[...profile.externalFlows,...flows],flowsCompleteThrough:asOf};
+    delete normalized.automaticFlowsAfter;
     errors.push(...validate(normalized,year));
     if(errors.length)return {ok:false,errors:[...new Set(errors)]};
+    return {ok:true,profile:normalized,flows,foreignFlows};
+  }
+  function linkedInputs(profile,year,asOf,appEndNav,source){
+    const errors=validate(profile,year),a=profile?.anchor;
+    if(profile?.method!==LINKED)errors.push('Automatic continuation requires a brokerage return anchor.');
+    if(!Number.isFinite(day(asOf))||asOf.slice(0,4)!==String(year)||asOf<a?.date)errors.push('The valuation must be on or after the return anchor in the selected year.');
+    if(!Number.isFinite(number(appEndNav)))errors.push('Current app NAV is unavailable.');
+    if(errors.length)return {ok:false,errors:[...new Set(errors)]};
+    const inputs=automaticInputs(profile,year,asOf,source,a.date);
+    if(!inputs.ok)return inputs;
     const adjustment=number(a.nav)-number(a.appNav);
     // Preserve the one-time NAV difference in performance only. Accounting state is never adjusted.
     const endNav=asOf===a.date?number(a.nav):number(appEndNav)+adjustment;
-    return {ok:true,profile:normalized,endNav,flows,adjustment,foreignFlows};
+    return {...inputs,endNav,adjustment};
   }
   function calculateLinked(profile,year,asOf,appEndNav,source){
     const inputs=linkedInputs(profile,year,asOf,appEndNav,source);
@@ -116,11 +139,13 @@
     if(!records.length)return {ok:false,errors:['No enabled portfolios.']};
     const errors=[];
     const linkedCount=records.filter(r=>r.profile?.method===LINKED).length;
+    const automaticCount=records.filter(r=>r.profile?.automaticFlowsAfter!=null).length;
     records=records.map(r=>{
-      if(r.profile?.method!==LINKED)return r;
-      const inputs=linkedInputs(r.profile,year,asOf,r.endNav,r.source);
+      const linked=r.profile?.method===LINKED;
+      if(!linked&&r.profile?.automaticFlowsAfter==null)return r;
+      const inputs=linked?linkedInputs(r.profile,year,asOf,r.endNav,r.source):automaticInputs(r.profile,year,asOf,r.source,r.profile.automaticFlowsAfter);
       if(!inputs.ok){errors.push(...inputs.errors);return r;}
-      return {...r,profile:inputs.profile,endNav:inputs.endNav};
+      return {...r,profile:inputs.profile,endNav:linked?inputs.endNav:r.endNav};
     });
     for(const r of records)errors.push(...validate(r.profile,year));
     if(errors.length)return {ok:false,errors:[...new Set(errors)]};
@@ -149,9 +174,9 @@
     const profile={version:1,method:METHOD,currency:records[0].profile.currency,openingAsOf:`${Number(year)-1}-12-31`,
       openingNav:records.reduce((s,r)=>s+number(r.profile.openingNav),0),externalFlows:external,
       flowsCompleteThrough:records.map(r=>r.profile.flowsCompleteThrough).sort()[0]};
-    return {...calculate(profile,year,asOf,records.reduce((s,r)=>s+number(r.endNav),0)),internalTransferPairs:pairs.size,linkedCount};
+    return {...calculate(profile,year,asOf,records.reduce((s,r)=>s+number(r.endNav),0)),internalTransferPairs:pairs.size,linkedCount,automaticCount};
   }
-  const api={validate,calculate,aggregate,linkedInputs};
+  const api={validate,calculate,aggregate,linkedInputs,automaticInputs};
   root.PortfolioYtdAnchor=api;
   if(typeof document==='undefined')return;
 
@@ -212,14 +237,14 @@
       ['External contributions',fmt(r.deposits,r.currency)],['External withdrawals',fmt(r.withdrawals,r.currency)],['YTD investment P/L',signMoney(r.profit,r.currency)]];
     if(linked)rows.push(['Brokerage YTD anchor · '+r.anchorDate,percent(r.anchorReturnPct)],['Return since anchor · estimate',percent(r.periodReturnPct)],['NAV alignment · performance only',signMoney(r.navAdjustment,r.currency)]);
     const explanation=linked?`${r.returnUnavailable||'Brokerage YTD is compounded with a Modified Dietz estimate since the anchor. This is an app estimate, not an exact brokerage TWR.'} ${r.autoFlowCount} later deposit/withdrawal records included automatically. ${r.foreignFlows?'Foreign-currency flows use current saved/live FX. ':''}Prices, recorded trades and later flows update the estimate without new statements.`:
-      `${r.returnUnavailable||'Modified Dietz return: investment P/L divided by opening NAV plus day-weighted external flows. Not annualized; not exact TWR.'} No daily history is drawn from missing trades. Flow list reviewed through ${r.reviewedThrough}.${r.staleFlows?' Add any later external flows before relying on this result.':''}`;
+      `${r.returnUnavailable||'Modified Dietz return: investment P/L divided by opening NAV plus day-weighted external flows. Not annualized; not exact TWR.'} No daily history is drawn from missing trades. ${r.automaticFlowsAfter?`Historical flows reviewed through ${r.automaticFlowsAfter}; ${r.autoFlowCount} later deposit/withdrawal records included automatically.${r.foreignFlows?' Foreign-currency flows use current saved/live FX.':''}`:`Flow list reviewed through ${r.reviewedThrough}.${r.staleFlows?' Add any later external flows before relying on this result.':''}`}`;
     return `<div class="ytd-snapshot"><dl>${rows.map(([k,v])=>`<dt>${escape(k)}</dt><dd>${escape(v)}</dd>`).join('')}</dl>
       <div class="ytd-explanation">${escape(explanation)}</div></div>`;
   }
   function methodNote(r){
     if(!r?.ok)return 'Correct this portfolio’s YTD settings to show its anchored return.';
     if(r.method===LINKED)return `Brokerage return through ${r.anchorDate}; automatic app estimate after that date in ${r.currency}. Only later Deposit / Withdrawal records are treated as external flows. Trades, retained dividends, fees and FX exchanges affect NAV instead. The saved NAV alignment changes performance only. Missing/stale prices, FX and unrecorded fees or interest can cause differences from the brokerage. No recurring statement upload is required.`;
-    return `YTD uses this portfolio’s optional opening NAV and separate external-flow list in ${r.currency}. Existing Deposit / Withdrawal transactions are not added to that list. ${r.navSource==='snapshot'?'Closing NAV is a dated brokerage snapshot and remains fixed until updated.':'Current NAV uses the existing holdings, cash and saved/live FX.'} Brokerage-accurate NAV and complete flows are required. Fees, tax, dividends and interest retained in the account are reflected in NAV and are not deducted again. Large flows and volatile returns can reduce Modified Dietz accuracy.`;
+    return `YTD uses this portfolio’s optional opening NAV and separate external-flow list in ${r.currency}. ${r.automaticFlowsAfter?`Only Deposit / Withdrawal transactions dated after ${r.automaticFlowsAfter} are added automatically; earlier initialization records are excluded.`:'Existing Deposit / Withdrawal transactions are not added to that list.'} ${r.navSource==='snapshot'?'Closing NAV is a dated brokerage snapshot and remains fixed until updated.':'Current NAV uses the existing holdings, cash and saved/live FX.'} Brokerage-accurate NAV and complete flows are required. Fees, tax, dividends and interest retained in the account are reflected in NAV and are not deducted again. Large flows and volatile returns can reduce Modified Dietz accuracy.`;
   }
   function legendHtml(r,bench={}){
     return [{label:`Portfolio · ${r?.currency||''} ${r?.method===LINKED?'Broker-linked estimate':'Modified Dietz'}`,value:r?.ok?r.returnPct:null},
@@ -273,7 +298,7 @@
     if(label)label.textContent=selected.length===active.length?'All portfolios · Anchored YTD':'Enabled portfolios only · Anchored YTD';
     if(sub)sub.textContent=`${selected.length}/${active.length} active portfolios · ${r.currency||'one common currency required'} · Modified Dietz estimate`;
     if(chart)chart.innerHTML=snapshotHtml(r);
-    if(note)note.textContent=`Included: ${selected.map(a=>a.name).join(', ')}. ${r.linkedCount?'Group return is a whole-year Modified Dietz estimate from combined NAV and flows; individual broker-linked percentages are not averaged. Later flows from automatic profiles are read from their transactions. ':methodNote(r)+' '}Internal transfers are removed only when both enabled portfolios have matching dated transfer entries. Portfolios without a profile are excluded from this anchored subtotal; their own calculations remain unchanged.`;
+    if(note)note.textContent=`Included: ${selected.map(a=>a.name).join(', ')}. ${r.linkedCount||r.automaticCount?'Group return is a whole-year Modified Dietz estimate from combined NAV and flows; individual portfolio percentages are not averaged. Later flows from automatic profiles are read from their transactions. ':methodNote(r)+' '}Internal transfers are removed only when both enabled portfolios have matching dated transfer entries. Portfolios without a profile are excluded from this anchored subtotal; their own calculations remain unchanged.`;
     return true;
   }
   api.renderPortfolio=renderPortfolio;api.renderOverall=renderOverall;
@@ -309,6 +334,8 @@
     byId('ytdAnchorReturn').value=p?.anchor?.returnPct??'';
     byId('ytdAnchorNav').value=p?.anchor?.nav??p?.navSnapshot?.amount??'';
     byId('ytdAppAnchorNav').value=p?.anchor?.appNav??'';
+    byId('ytdAutomaticEnabled').checked=p?.automaticFlowsAfter!=null;
+    byId('ytdAutomaticAfter').value=p?.automaticFlowsAfter||p?.flowsCompleteThrough||today();
     byId('ytdAutoFlows').innerHTML='';
     for(const f of p?.externalFlows||[])addFlow(f);
     updateMethodInputs();
@@ -324,22 +351,27 @@
   }
   function updateMethodInputs(){
     const linked=byId('ytdMethod').value===LINKED;
+    const automatic=linked||byId('ytdAutomaticEnabled').checked;
     byId('ytdLinkedInputs').classList.toggle('hidden',!linked);byId('ytdNavSettings').classList.toggle('hidden',linked);
-    byId('ytdAutoSection').classList.toggle('hidden',!linked);
-    byId('ytdFlowHeading').textContent=linked?'Historical external flows through the anchor':'External flows for the whole year';
-    byId('ytdFlowHelp').textContent=linked?'Enter historical external flows only through the anchor date, in the reporting currency. After that date, existing and new Deposit / Withdrawal records are read automatically. Do not enter later flows twice.':'Enter every contribution and withdrawal in the reporting currency, using its value on the flow date. This list replaces transaction-based flows for anchored YTD only. Do not include stock trades, retained dividends, fees, interest or currency exchanges. No transactions are imported or edited.';
+    byId('ytdAutomaticSettings').classList.toggle('hidden',linked);
+    byId('ytdAutomaticDate').classList.toggle('hidden',!byId('ytdAutomaticEnabled').checked);
+    byId('ytdAutoSection').classList.toggle('hidden',!automatic);
+    byId('ytdFlowHeading').textContent=automatic?'Historical external flows through the cutoff':'External flows for the whole year';
+    byId('ytdFlowHelp').textContent=automatic?'Enter historical external flows only through the selected cutoff date, in the reporting currency. After that date, existing and new Deposit / Withdrawal records are read automatically. Do not enter later flows twice.':'Enter every contribution and withdrawal in the reporting currency, using its value on the flow date. This list replaces transaction-based flows for anchored YTD only. Do not include stock trades, retained dividends, fees, interest or currency exchanges. No transactions are imported or edited.';
     byId('ytdCaptureNav').disabled=byId('ytdAnchorDate').value!==today();
-    if(linked){byId('ytdNavSource').value='app';updateAutomaticPreview();}
+    if(linked)byId('ytdNavSource').value='app';
+    if(automatic)updateAutomaticPreview();
   }
   function updateAutomaticPreview(){
     const notes={...(account(editAccountId)?.performanceProfiles?.[byId('ytdYear').value]?.autoFlowTransfers||{}),...automaticTransferNotes()};
-    const currency=byId('ytdCurrency').value,date=byId('ytdAnchorDate').value;
-    const p={version:1,method:LINKED,currency,openingAsOf:`${Number(byId('ytdYear').value)-1}-12-31`,openingNav:0,externalFlows:[],flowsCompleteThrough:date,
-      anchor:{date,nav:1,appNav:1,returnPct:0},autoFlowTransfers:notes};
-    const inputs=linkedInputs(p,byId('ytdYear').value,today(),1,flowSource(editAccountId));
+    const linked=byId('ytdMethod').value===LINKED;
+    const currency=byId('ytdCurrency').value,date=byId(linked?'ytdAnchorDate':'ytdAutomaticAfter').value;
+    const p={version:1,method:METHOD,currency,openingAsOf:`${Number(byId('ytdYear').value)-1}-12-31`,openingNav:0,externalFlows:[],flowsCompleteThrough:date<`${byId('ytdYear').value}-01-01`?`${byId('ytdYear').value}-01-01`:date,
+      automaticFlowsAfter:date,autoFlowTransfers:notes};
+    const inputs=automaticInputs(p,byId('ytdYear').value,today(),flowSource(editAccountId),date);
     byId('ytdAutoFlows').innerHTML='';
     if(inputs.ok)for(const flow of inputs.flows)addFlow(flow,'ytdAutoFlows');
-    byId('ytdAutoNote').textContent=inputs.ok?`${inputs.flows.length} later cash-flow records found. New records are included automatically; only transfer matching notes below are saved here.`:'Select a valid anchor date to preview later cash flows.';
+    byId('ytdAutoNote').textContent=inputs.ok?`${inputs.flows.length} later cash-flow records found. New records are included automatically; only transfer matching notes below are saved here.`:'Select a valid cutoff date to preview later cash flows.';
     const nav=currentNav(editAccountId,currency);
     byId('ytdCurrentNav').textContent=Number.isFinite(nav)?`Current app NAV · ${today()}: ${fmt(nav,currency)}. A past anchor needs the app NAV at that same past close; today’s NAV must not be used for it.`:'Current app NAV unavailable.';
   }
@@ -359,6 +391,10 @@
         appNav:byId('ytdAppAnchorNav').value.trim()===''?number(byId('ytdAnchorNav').value):number(byId('ytdAppAnchorNav').value)};
       profile.autoFlowTransfers=automaticTransferNotes();
     }
+    if(isEnabled&&profile.method===METHOD&&byId('ytdAutomaticEnabled').checked){
+      profile.automaticFlowsAfter=byId('ytdAutomaticAfter').value;
+      profile.autoFlowTransfers=automaticTransferNotes();
+    }
     const errors=isEnabled?validate(profile,year):[];
     if(isEnabled&&profile.externalFlows.some(f=>f.date>today()))errors.push('Future external flows cannot be included as actuals.');
     if(isEnabled&&profile.flowsCompleteThrough>today())errors.push('Flow review date cannot be in the future.');
@@ -366,6 +402,11 @@
     if(isEnabled&&profile.externalFlows.some(f=>f.date>profile.flowsCompleteThrough))errors.push('Flow review date must cover every entered flow.');
     if(isEnabled&&profile.method===LINKED){
       const inputs=linkedInputs(profile,year,today(),currentNav(a.id,profile.currency),flowSource(a.id));
+      if(!inputs.ok)errors.push(...inputs.errors);
+    }
+    if(isEnabled&&profile.automaticFlowsAfter!=null){
+      if(profile.automaticFlowsAfter>today())errors.push('Automatic-flow cutoff cannot be in the future.');
+      const inputs=automaticInputs(profile,year,today(),flowSource(a.id),profile.automaticFlowsAfter);
       if(!inputs.ok)errors.push(...inputs.errors);
     }
     if(errors.length){byId('ytdError').textContent=[...new Set(errors)].join('\n');return;}
@@ -415,10 +456,14 @@
         <label>Closing NAV source<select id="ytdNavSource"><option value="app">Current app NAV</option><option value="snapshot">Dated brokerage NAV snapshot</option></select></label>
         <div id="ytdSnapshotInputs" class="hidden"><label>NAV valuation date<input id="ytdNavDate" type="date"/></label><label>Brokerage net assets · reporting currency<input id="ytdNavAmount" type="number" step="any"/></label><p class="ytd-form-note">This performance-only NAV stays fixed at the stated date until updated. It does not change cash, holdings or transactions.</p></div>
         </div>
+        <div id="ytdAutomaticSettings"><label><input id="ytdAutomaticEnabled" type="checkbox"/>Read later deposits / withdrawals automatically</label>
+          <label id="ytdAutomaticDate" class="hidden">Historical flow list complete through<input id="ytdAutomaticAfter" type="date"/></label>
+          <p class="ytd-form-note">Optional: maintain the separate historical flow list through this date. Only later Deposit / Withdrawal records count automatically. Current NAV and the whole-year Modified Dietz formula are unchanged.</p>
+        </div>
         <label>Source / reconciliation note<input id="ytdSource" maxlength="300"/></label>
         <h4 id="ytdFlowHeading">External flows for the whole year</h4><p id="ytdFlowHelp" class="ytd-form-note"></p>
         <div id="ytdFlows"></div><button id="ytdAddFlow" type="button" class="ghost-btn full">Add external flow</button>
-        <div id="ytdAutoSection" class="hidden"><h4>Automatic flows after the anchor</h4><p id="ytdAutoNote" class="ytd-form-note"></p><div id="ytdAutoFlows"></div></div>
+        <div id="ytdAutoSection" class="hidden"><h4>Automatic flows after the cutoff</h4><p id="ytdAutoNote" class="ytd-form-note"></p><div id="ytdAutoFlows"></div></div>
         <p class="ytd-form-note">For transfers between portfolios, enter equal opposite amounts, the other portfolio and the same transfer reference on both sides. Cross-date or unmatched transfers block the anchored group return.</p>
         <label>Flow list reviewed through<input id="ytdReviewed" type="date"/></label>
         <div id="ytdError" class="ytd-error" role="alert"></div><button id="ytdSave" type="button" class="primary-btn full">Save YTD settings</button>
@@ -429,7 +474,9 @@
       byId('ytdNavSource').addEventListener('change',updateNavInputs);
       byId('ytdMethod').addEventListener('change',updateMethodInputs);
       byId('ytdAnchorDate').addEventListener('change',updateMethodInputs);
-      byId('ytdCurrency').addEventListener('change',()=>{if(byId('ytdMethod').value===LINKED)updateAutomaticPreview();});
+      byId('ytdAutomaticEnabled').addEventListener('change',updateMethodInputs);
+      byId('ytdAutomaticAfter').addEventListener('change',updateMethodInputs);
+      byId('ytdCurrency').addEventListener('change',()=>{if(byId('ytdMethod').value===LINKED||byId('ytdAutomaticEnabled').checked)updateAutomaticPreview();});
       byId('ytdCaptureNav').addEventListener('click',()=>{
         if(byId('ytdAnchorDate').value!==today())return;
         const nav=currentNav(editAccountId,byId('ytdCurrency').value);if(Number.isFinite(nav))byId('ytdAppAnchorNav').value=nav;
