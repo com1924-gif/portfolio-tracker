@@ -1,35 +1,34 @@
 (async()=>{
-  window.__PORTFOLIO_APP_VERSION='2.25.26';
+  window.__PORTFOLIO_APP_VERSION='2.25.21';
   const files=[
-    'core-v2.js?v=2.25.26',
-    'ui-v2.js?v=2.25.26',
-    'actions-v2.js?v=2.25.26',
-    'lifecycle-v2.js?v=2.25.26',
-    'holding-cost-v2.js?v=2.25.26',
-    'delete-guard-v2.js?v=2.25.26',
-    'ledger-v2.js?v=2.25.26',
-    'currency-eur-v2.js?v=2.25.26',
-    'reorder-v2.js?v=2.25.26',
-    'swipe-nav-v2.js?v=2.25.26',
-    'sync-v225.js?v=2.25.26',
-    'live-fx-v2.js?v=2.25.26',
-    'prices-v2.js?v=2.25.26',
-    'layout-v225.js?v=2.25.26',
-    'history-v2.js?v=2.25.26',
-    'history-style-v2.js?v=2.25.26',
-    'performance-v225.js?v=2.25.26',
-    'home-v225.js?v=2.25.26',
-    'cash-baseline-v2.js?v=2.25.26',
-    'capital-v2.js?v=2.25.26',
-    'overall-return-v2.js?v=2.25.26',
-    'performance-import-2026-v2.js?v=2.25.26',
-    'privacy-toggle-v2.js?v=2.25.26',
-    'option-close-v2.js?v=2.25.26',
-    'option-combo-v2.js?v=2.25.26',
-    'bull-call-group-v2.js?v=2.25.26',
-    'bull-call-transactions-v2.js?v=2.25.26',
-    'bull-call-edit-v2.js?v=2.25.26',
-    'transaction-prefill-v2.js?v=2.25.26'
+    'core-v2.js?v=2.25.21',
+    'ui-v2.js?v=2.25.21',
+    'actions-v2.js?v=2.25.21',
+    'lifecycle-v2.js?v=2.25.21',
+    'holding-cost-v2.js?v=2.25.21',
+    'delete-guard-v2.js?v=2.25.21',
+    'ledger-v2.js?v=2.25.21',
+    'capital-v2.js?v=2.25.21',
+    'currency-eur-v2.js?v=2.25.21',
+    'reorder-v2.js?v=2.25.21',
+    'swipe-nav-v2.js?v=2.25.21',
+    'sync-v225.js?v=2.25.21',
+    'live-fx-v2.js?v=2.25.21',
+    'prices-v2.js?v=2.25.21',
+    'layout-v225.js?v=2.25.21',
+    'history-v2.js?v=2.25.21',
+    'history-style-v2.js?v=2.25.21',
+    'performance-v225.js?v=2.25.21',
+    'home-v225.js?v=2.25.21',
+    'overall-return-v2.js?v=2.25.21',
+    'performance-import-2026-v2.js?v=2.25.21',
+    'privacy-toggle-v2.js?v=2.25.21',
+    'option-close-v2.js?v=2.25.21',
+    'option-combo-v2.js?v=2.25.21',
+    'bull-call-group-v2.js?v=2.25.21',
+    'bull-call-transactions-v2.js?v=2.25.21',
+    'bull-call-edit-v2.js?v=2.25.21',
+    'transaction-prefill-v2.js?v=2.25.21'
   ];
 
   for(const src of files){
@@ -40,10 +39,6 @@
       s.onerror=()=>reject(new Error(`Failed to load ${src}`));
       document.body.appendChild(s);
     });
-  }
-
-  if(!window.__cashBaselineReady){
-    throw new Error('Cash baseline module did not initialize correctly');
   }
 
   const startupSync=window.portfolioStartupSyncReady;

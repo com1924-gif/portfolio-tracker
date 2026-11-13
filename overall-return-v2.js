@@ -1,6 +1,6 @@
 (()=>{
-  if(window.__overallReturnSummaryV22522)return;
-  window.__overallReturnSummaryV22522=true;
+  if(window.__overallReturnSummaryV22521)return;
+  window.__overallReturnSummaryV22521=true;
 
   const PERIODS=['1W','MTD','1M','3M','YTD','1Y','ALL'];
   let mode='value';
@@ -123,9 +123,7 @@
   async function buildOverallValueSeries(start,{force=false}={}){
     const accounts=activeAccounts();
     if(!accounts.length)return [];
-    const baseline=state.settings?.performanceBaseline;
-    const calcStart=baseline?.date&&baseline.date<start?baseline.date:start;
-    const from=fetchStart(calcStart);
+    const from=fetchStart(start);
     const fetched=await Promise.all(accounts.map(async a=>{
       const data=await fetchHistoryForPortfolio(a.id,from,{force});
       const lookups=new Map();
@@ -133,13 +131,14 @@
       return {account:a,lookups};
     }));
 
-    const dates=new Set([calcStart,dateString(new Date())]);
+    const dates=new Set([start,dateString(new Date())]);
     fetched.forEach(({account,lookups})=>{
-      for(const points of lookups.values())for(const p of points)if(p.date>=calcStart)dates.add(p.date);
-      state.transactions.filter(t=>t.accountId===account.id&&t.date>=calcStart).forEach(t=>dates.add(t.date));
-      state.fx.filter(f=>f.accountId===account.id&&f.date>=calcStart).forEach(f=>dates.add(f.date));
+      for(const points of lookups.values())for(const p of points)if(p.date>=start)dates.add(p.date);
+      state.transactions.filter(t=>t.accountId===account.id&&t.date>=start).forEach(t=>dates.add(t.date));
+      state.fx.filter(f=>f.accountId===account.id&&f.date>=start).forEach(f=>dates.add(f.date));
     });
-    if(baseline?.date&&baseline.date>=calcStart)dates.add(baseline.date);
+    const baseline=state.settings?.performanceBaseline;
+    if(baseline?.date&&baseline.date>=start)dates.add(baseline.date);
 
     const today=dateString(new Date());
     const out=[];
@@ -167,15 +166,7 @@
       }
       out.push({date,value:total});
     }
-    if(baseline?.date){
-      const basePoint=out.find(p=>p.date===baseline.date);
-      if(basePoint){
-        const baselineValue=convert(Number(baseline.value)||0,baseline.currency||'HKD');
-        const bridge=baselineValue-Number(basePoint.value||0);
-        out.forEach(p=>{if(p.date>=baseline.date)p.value=Number(p.value||0)+bridge;});
-      }
-    }
-    return out.filter(p=>p.date>=start);
+    return out;
   }
 
   function flowsByDate(start){
@@ -340,7 +331,7 @@
       const hasFlows=state.transactions.some(t=>['Deposit','Withdrawal'].includes(t.type)&&(t.date||'')>=start);
       if(note){
         const parts=mode==='value'
-          ?['Value is combined Net Assets across all portfolios and includes recorded deposits / withdrawals. Opening NAV is used as an aggregate bridge when opening cash by account is incomplete.']
+          ?['Value is combined Net Assets across all portfolios and includes recorded deposits / withdrawals.']
           :['Performance removes recorded deposits / withdrawals from the selected period and compounds the remaining portfolio return.'];
         parts.push('Historical FX uses the current saved/reference FX rates.');
         if(hasOptions)parts.push('Historical option values are approximate before the latest recorded/manual option price.');
