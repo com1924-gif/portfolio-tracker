@@ -435,11 +435,14 @@
   function reconcileOverallOpeningNav(){
     const relevant=state.accounts.filter(accountHasActivity);
     if(!relevant.length||!relevant.every(a=>historicalForAccount(a).configured))return;
-    const total=relevant.reduce((sum,a)=>sum+historicalForAccount(a).openingNavConverted,0);
+    const totalHKD=relevant.reduce((sum,a)=>{
+      const h=historicalForAccount(a);
+      return sum+convert(h.openingNav,h.currency,'HKD');
+    },0);
     state.settings=state.settings||{};
     state.settings.performanceBaseline={
       date:OPENING_DATE,
-      value:convert(total,displayCurrency,'HKD'),
+      value:totalHKD,
       currency:'HKD',
       sourceId:'account-historical-baselines'
     };
