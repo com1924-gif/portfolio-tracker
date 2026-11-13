@@ -139,8 +139,7 @@
       state.transactions.filter(t=>t.accountId===account.id&&t.date>=calcStart).forEach(t=>dates.add(t.date));
       state.fx.filter(f=>f.accountId===account.id&&f.date>=calcStart).forEach(f=>dates.add(f.date));
     });
-    const baseline=state.settings?.performanceBaseline;
-    if(baseline?.date&&baseline.date>=start)dates.add(baseline.date);
+    if(baseline?.date&&baseline.date>=calcStart)dates.add(baseline.date);
 
     const today=dateString(new Date());
     const out=[];
