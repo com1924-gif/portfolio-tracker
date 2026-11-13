@@ -1,35 +1,35 @@
 (async()=>{
-  window.__PORTFOLIO_APP_VERSION='2.25.23';
+  window.__PORTFOLIO_APP_VERSION='2.25.24';
   const files=[
-    'core-v2.js?v=2.25.23',
-    'ui-v2.js?v=2.25.23',
-    'actions-v2.js?v=2.25.23',
-    'lifecycle-v2.js?v=2.25.23',
-    'holding-cost-v2.js?v=2.25.23',
-    'delete-guard-v2.js?v=2.25.23',
-    'ledger-v2.js?v=2.25.23',
-    'capital-v2.js?v=2.25.23',
-    'currency-eur-v2.js?v=2.25.23',
-    'reorder-v2.js?v=2.25.23',
-    'swipe-nav-v2.js?v=2.25.23',
-    'sync-v225.js?v=2.25.23',
-    'live-fx-v2.js?v=2.25.23',
-    'prices-v2.js?v=2.25.23',
-    'layout-v225.js?v=2.25.23',
-    'history-v2.js?v=2.25.23',
-    'history-style-v2.js?v=2.25.23',
-    'performance-v225.js?v=2.25.23',
-    'home-v225.js?v=2.25.23',
-    'cash-baseline-v2.js?v=2.25.23',
-    'overall-return-v2.js?v=2.25.23',
-    'performance-import-2026-v2.js?v=2.25.23',
-    'privacy-toggle-v2.js?v=2.25.23',
-    'option-close-v2.js?v=2.25.23',
-    'option-combo-v2.js?v=2.25.23',
-    'bull-call-group-v2.js?v=2.25.23',
-    'bull-call-transactions-v2.js?v=2.25.23',
-    'bull-call-edit-v2.js?v=2.25.23',
-    'transaction-prefill-v2.js?v=2.25.23'
+    'core-v2.js?v=2.25.24',
+    'ui-v2.js?v=2.25.24',
+    'actions-v2.js?v=2.25.24',
+    'lifecycle-v2.js?v=2.25.24',
+    'holding-cost-v2.js?v=2.25.24',
+    'delete-guard-v2.js?v=2.25.24',
+    'ledger-v2.js?v=2.25.24',
+    'capital-v2.js?v=2.25.24',
+    'currency-eur-v2.js?v=2.25.24',
+    'reorder-v2.js?v=2.25.24',
+    'swipe-nav-v2.js?v=2.25.24',
+    'sync-v225.js?v=2.25.24',
+    'live-fx-v2.js?v=2.25.24',
+    'prices-v2.js?v=2.25.24',
+    'layout-v225.js?v=2.25.24',
+    'history-v2.js?v=2.25.24',
+    'history-style-v2.js?v=2.25.24',
+    'performance-v225.js?v=2.25.24',
+    'home-v225.js?v=2.25.24',
+    'cash-baseline-v2.js?v=2.25.24',
+    'overall-return-v2.js?v=2.25.24',
+    'performance-import-2026-v2.js?v=2.25.24',
+    'privacy-toggle-v2.js?v=2.25.24',
+    'option-close-v2.js?v=2.25.24',
+    'option-combo-v2.js?v=2.25.24',
+    'bull-call-group-v2.js?v=2.25.24',
+    'bull-call-transactions-v2.js?v=2.25.24',
+    'bull-call-edit-v2.js?v=2.25.24',
+    'transaction-prefill-v2.js?v=2.25.24'
   ];
 
   for(const src of files){
@@ -40,6 +40,10 @@
       s.onerror=()=>reject(new Error(`Failed to load ${src}`));
       document.body.appendChild(s);
     });
+  }
+
+  if(!window.__cashBaselineReady){
+    throw new Error('Cash baseline module did not initialize correctly');
   }
 
   const startupSync=window.portfolioStartupSyncReady;
