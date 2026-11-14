@@ -75,6 +75,16 @@
         </div>`;
       home.appendChild(panel);
     }
+    const body=panel.querySelector('.overall-return-body');
+    if(!panel.querySelector('#overallReturnRefresh')){
+      const tools=document.createElement('div');tools.className='overall-return-tools';
+      tools.innerHTML='<span id="overallReturnUpdated" class="overall-return-updated"></span><button type="button" id="overallReturnRefresh" class="ghost-btn overall-return-refresh">Refresh overview</button>';
+      body.prepend(tools);
+    }
+    if(!panel.querySelector('#overallReturnBreakdown')){
+      const details=document.createElement('div');details.id='overallReturnBreakdown';details.className='overall-return-breakdown hidden';body.appendChild(details);
+    }
+    panel.querySelectorAll('.overall-return-tab').forEach(btn=>btn.classList.toggle('active',btn.dataset.mode===mode));
     if(panel.dataset.overallReturnBound!=='1'){
       panel.dataset.overallReturnBound='1';
       panel.querySelectorAll('.overall-return-tab').forEach(btn=>btn.addEventListener('click',()=>{
