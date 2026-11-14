@@ -312,7 +312,8 @@ try{
  await cursorPage.locator('#historyChart .chart-inspector-latest').click();
  await cursor.scrollIntoViewIfNeeded();let box=await cursor.boundingBox();
  const session=await cursorPage.context().newCDPSession(cursorPage);
- await session.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:box.x+box.width*.85,y:box.y+box.height*.5}]});
+ await session.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:box.x+box.width*.98,y:box.y+box.height*.5}]});
+ assert.equal(await cursorPage.locator('#historyChart .chart-inspector-tooltip').isVisible(),true,'tapping the latest date did not activate its tooltip');
  await session.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:box.x+box.width*.02,y:box.y+box.height*.5}]});
  await session.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
  assert.match(await cursorPage.locator('#historyChart .chart-inspector-date').textContent(),/2026-08-13/,'touch drag did not select an earlier recorded date');

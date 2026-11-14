@@ -83,7 +83,7 @@
     function choose(date,show=true){
       selected=date;const exact=seriesByDate.get(date),nav=navByDate.get(date),dayFlows=byDate.get(date)||[];index=nearestIndex(series,date);
       let r=null;
-      if(nav&&date.slice(0,4)===end.slice(0,4)){
+      if(nav){
         if(cache.has(date))r=cache.get(date);
         else{r=portfolioId?root.PortfolioYtdAnchor?.resultAt(portfolioId,date,nav.value,currency):root.PortfolioYtdAnchor?.overallAt(date,nav.accountValues,currency);cache.set(date,r);}
       }
@@ -104,7 +104,7 @@
       const matrix=svg.getScreenCTM();if(!matrix)return;
       const point=svg.createSVGPoint();point.x=event.clientX;point.y=event.clientY;const local=point.matrixTransform(matrix.inverse());
       const ratio=Math.max(0,Math.min(1,(local.x-left)/(right-left))),time=Date.parse(first)+(Date.parse(last)-Date.parse(first))*ratio;
-      const i=nearestIndex(series,time);if(i>=0&&series[i].date!==selected)choose(series[i].date);
+      const i=nearestIndex(series,time);if(i>=0&&(series[i].date!==selected||cursor.style.display==='none'))choose(series[i].date);
     }
     svg.setAttribute('tabindex','0');svg.setAttribute('role','slider');svg.setAttribute('aria-label','Explore historical NAV and YTD by date');svg.setAttribute('aria-orientation','horizontal');svg.setAttribute('aria-valuemin','0');svg.setAttribute('aria-valuemax',String(series.length-1));
     svg.addEventListener('pointerdown',e=>{if(e.button!==0)return;dragging=true;svg.setPointerCapture(e.pointerId);fromPointer(e);},{signal});
