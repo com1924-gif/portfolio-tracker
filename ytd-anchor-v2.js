@@ -233,14 +233,15 @@
   function resultAt(id,asOf,nav,currency){
     const p=enabled(id,asOf.slice(0,4));if(!p)return null;
     if(!Number.isFinite(day(asOf))||asOf>today())return {ok:false,errors:['Historical date is unavailable.']};
-    return {...calculateHistorical(p,asOf.slice(0,4),asOf,historicalNav(nav,currency,p.currency),flowSource(id)),navSource:p.navSource||'app'};
+    const historical=window.PortfolioPerformanceHistory?.calculationProfile(id,asOf,p)||p;
+    return {...calculateHistorical(historical,asOf.slice(0,4),asOf,historicalNav(nav,currency,p.currency),flowSource(id)),navSource:p.navSource||'app',historicalEstimate:historical!==p};
   }
   function overallAt(asOf,values,currency){
     if(!Number.isFinite(day(asOf))||asOf>today())return {ok:false,errors:['Historical date is unavailable.']};
     const active=activeAccounts(),selected=active.filter(a=>enabled(a.id,asOf.slice(0,4)));if(!selected.length)return null;
     const records=[];
     for(const a of selected){
-      const p=enabled(a.id,asOf.slice(0,4)),nav=historicalNav(values?.[a.id],currency,p.currency),r=calculateHistorical(p,asOf.slice(0,4),asOf,nav,flowSource(a.id));
+      const saved=enabled(a.id,asOf.slice(0,4)),p=window.PortfolioPerformanceHistory?.calculationProfile(a.id,asOf,saved)||saved,nav=historicalNav(values?.[a.id],currency,p.currency),r=calculateHistorical(p,asOf.slice(0,4),asOf,nav,flowSource(a.id));
       if(!r.ok)return {ok:false,errors:[a.name+': '+r.errors.join(' ')],selectedCount:selected.length,activeCount:active.length};
       records.push({id:a.id,profile:p,endNav:p.navSource==='snapshot'?p.navSnapshot.amount:nav,source:flowSource(a.id)});
     }
@@ -326,9 +327,11 @@
     const activePeriod=byId('benchmarkPeriods')?.querySelector('.active')?.dataset.period;
     if(activePeriod&&activePeriod!==period)return true;
     const seq=++portfolioSequence,r=resultFor(id),chart=byId('benchmarkChart'),legend=byId('benchmarkLegend'),note=byId('benchmarkNote');
-    if(chart)chart.innerHTML=snapshotHtml(r);
+    const reconstructed=!!window.PortfolioPerformanceHistory?.historyFor(id,yearNow());
+    if(chart)chart.innerHTML=reconstructed?'<div class="history-loading">Loading reconstructed YTD…</div>':snapshotHtml(r);
+    if(reconstructed)window.PortfolioPerformanceHistory.renderYtd(id,{force}).catch(()=>{if(seq===portfolioSequence&&currentPortfolioId===id&&chart)chart.innerHTML=snapshotHtml(r);});
     if(legend)legend.innerHTML=legendHtml(r);
-    if(note)note.textContent=methodNote(r)+` Benchmarks use prior year-end adjusted close and quotes up to ${r?.asOf||'the valuation date'} in USD; their currency and return methodology may differ from the portfolio.`;
+    if(note)note.textContent=methodNote(r)+(reconstructed?' Daily YTD uses imported, labelled NAV history. Earlier dates before a brokerage return anchor use a Modified Dietz estimate; no broker TWR is backcast. ':' ')+`Benchmarks use prior year-end adjusted close and quotes up to ${r?.asOf||'the valuation date'} in USD; their currency and return methodology may differ from the portfolio.`;
     if(r?.ok)benchmarks(yearNow(),r.asOf,{force}).then(bench=>{
       if(seq!==portfolioSequence||currentPortfolioId!==id||!enabled(id)||byId('benchmarkPeriods')?.querySelector('.active')?.dataset.period!=='YTD')return;
       if(legend)legend.innerHTML=legendHtml(resultFor(id),bench);
@@ -353,6 +356,7 @@
     const active=activeAccounts(),selected=active.filter(a=>enabled(a.id));
     if(!selected.length)return false;
     const r=overallResult();
+    if(r.ok&&selected.length===active.length&&active.every(a=>window.PortfolioPerformanceHistory?.historyFor(a.id,yearNow())))return false;
     const hero=byId('overallReturnHero'),sub=byId('overallReturnSub'),label=byId('overallReturnLabel'),chart=byId('overallReturnChart'),note=byId('overallReturnNote');
     if(hero){hero.textContent=r.ok?percent(r.returnPct):'—';hero.className=`overall-return-hero ${r.ok&&r.returnPct!=null?r.returnPct<0?'negative':'positive':''}`;}
     if(label)label.textContent=selected.length===active.length?'All portfolios · Anchored YTD':'Enabled portfolios only · Anchored YTD';

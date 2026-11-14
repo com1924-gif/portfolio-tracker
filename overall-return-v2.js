@@ -134,7 +134,8 @@
     else if(p==='ALL'){
       const dates=[
         ...state.transactions.map(t=>t.date),
-        ...state.fx.map(f=>f.date)
+        ...state.fx.map(f=>f.date),
+        ...activeAccounts().flatMap(a=>(window.PortfolioPerformanceHistory?.points(a.id)||[]).map(p=>p.date))
       ].filter(Boolean).sort();
       if(dates.length)return dates[0];
       d.setFullYear(d.getFullYear()-1);
@@ -162,7 +163,7 @@
     const records=activeAccounts().map(a=>{
       const dates=[...state.transactions.filter(t=>t.accountId===a.id).map(t=>t.date),...state.fx.filter(f=>f.accountId===a.id).map(f=>f.date)].filter(d=>d&&d<=asOf).sort();
       const p=window.PortfolioYtdAnchor?.profile(a.id);
-      return {firstDate:dates[0],anchored:!!p,openingNav:p?.openingNav};
+      return {firstDate:window.PortfolioPerformanceHistory?.firstDate(a.id,dates[0])||dates[0],anchored:!!p,openingNav:p?.openingNav};
     });
     return model.coverage(start,asOf,records);
   }
@@ -213,6 +214,7 @@
 
     const dates=new Set([start,dateString(new Date())]);
     fetched.forEach(({account,lookups})=>{
+      for(const p of window.PortfolioPerformanceHistory?.points(account.id)||[])if(p.date>=start)dates.add(p.date);
       for(const points of lookups.values())for(const p of points)if(p.date>=start)dates.add(p.date);
       state.transactions.filter(t=>t.accountId===account.id&&t.date>=start).forEach(t=>dates.add(t.date));
       state.fx.filter(f=>f.accountId===account.id&&f.date>=start).forEach(f=>dates.add(f.date));
@@ -241,7 +243,8 @@
         }
         const cashBal=cashBalancesAt(account.id,date);
         const cash=Object.entries(cashBal).reduce((s,[c,v])=>s+convert(v,c),0);
-        accountValues[account.id]=date===today?summaryFor(account.id).net:invested+cash;
+        const imported=window.PortfolioPerformanceHistory?.valueAt(account.id,date,displayCurrency);
+        accountValues[account.id]=date===today?summaryFor(account.id).net:imported??invested+cash;
         total+=accountValues[account.id];
       }
       out.push({date,value:total,accountValues});
@@ -251,6 +254,17 @@
 
   function flowsByDate(start){
     const map=new Map();
+    if(activeAccounts().some(a=>window.PortfolioPerformanceHistory?.points(a.id).length)){
+      const rows=activeAccounts().flatMap(a=>{
+        const r=window.PortfolioYtdAnchor.flowRecords(a.id,start,dateString(new Date()));
+        if(r.errors.length)throw new Error(r.errors.join(' '));return r.rows;
+      });
+      for(const f of window.PortfolioChartInspectorModel.classifyTransfers(rows,activeAccounts().map(a=>a.id))){
+        if(f.unmatched)throw new Error('An internal transfer needs review before calculating performance.');
+        if(!f.internal)map.set(f.date,(map.get(f.date)||0)+convert(f.amount,f.currency));
+      }
+      return map;
+    }
     state.transactions.filter(t=>['Deposit','Withdrawal'].includes(t.type)&&(t.date||'')>=start).forEach(t=>{
       const amount=convert(Number(t.amount)||0,t.currency);
       const signed=t.type==='Deposit'?amount:-amount;
@@ -358,14 +372,15 @@
       if(seq!==renderSeq||currentPortfolioId!==null)return;
 
       if(mode==='performance'){
-        const perf=performanceSeries(values,start);
+        const anchored=period==='YTD'&&activeAccounts().every(a=>window.PortfolioPerformanceHistory?.historyFor(a.id,dateString(new Date()).slice(0,4)));
+        const perf=anchored?values.flatMap(p=>{const r=window.PortfolioYtdAnchor.overallAt(p.date,p.accountValues,displayCurrency);return r?.ok&&r.returnPct!=null?[{date:p.date,value:r.returnPct}]:[];}):performanceSeries(values,start);
         const end=perf.length?Number(perf[perf.length-1].value):null;
         if(hero){
           hero.textContent=end==null?'—':pct(end);
           hero.className=`overall-return-hero ${end==null?'':end<0?'negative':'positive'}`;
         }
         if(sub){
-          sub.textContent=end==null?'Insufficient tracked history':`Total return · ${periodCaption()}`;
+          sub.textContent=end==null?'Insufficient tracked history':`${anchored?'Whole-year Modified Dietz estimate':'Total return'} · ${periodCaption()}`;
           sub.className='overall-return-sub';
         }
         drawChart(perf,true,values);
@@ -392,6 +407,7 @@
           ?['Value is combined Net Assets across all portfolios and includes recorded deposits / withdrawals.']
           :['Performance removes recorded deposits / withdrawals from the selected period and compounds the remaining portfolio return.'];
         parts.push('Historical FX uses the current saved/reference FX rates.');
+        if(activeAccounts().some(a=>window.PortfolioPerformanceHistory?.points(a.id).length))parts.push('Imported NAV history includes source-derived daily estimates and labelled statement dates. YTD uses whole-year Modified Dietz at each date; portfolio return percentages are never averaged.');
         if(coverage.limited)parts.push(`Available combined history: ${start} to ${coverage.asOf}; earlier values are not reconstructed. NAV change is not investment return.`);
         if(hasOptions)parts.push('Historical option values are approximate before the latest recorded/manual option price.');
         if(mode==='performance'&&period==='ALL')parts.push('All is a tracked-period proxy, not formal Lifetime TWR/XIRR, because older contribution dates may be incomplete.');

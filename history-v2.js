@@ -34,7 +34,8 @@ function ensureHistoryPanel(){
 function portfolioHistoryCoverage(portfolioId,period){
   const dates=[...state.transactions.filter(t=>t.accountId===portfolioId).map(t=>t.date),...state.fx.filter(f=>f.accountId===portfolioId).map(f=>f.date)].filter(d=>d&&d<=isoDate(new Date())).sort();
   const profile=window.PortfolioYtdAnchor?.profile(portfolioId);
-  return window.PortfolioOverviewModel.coverage(periodStart(portfolioId,period),isoDate(new Date()),[{firstDate:dates[0],anchored:!!profile,openingNav:profile?.openingNav}]);
+  const firstDate=window.PortfolioPerformanceHistory?.firstDate(portfolioId,dates[0])||dates[0];
+  return window.PortfolioOverviewModel.coverage(periodStart(portfolioId,period),isoDate(new Date()),[{firstDate,anchored:!!profile,openingNav:profile?.openingNav}]);
 }
 
 function isoDate(d){
@@ -52,7 +53,8 @@ function periodStart(portfolioId,period){
   else if(period==='ALL'){
     const dates=[
       ...state.transactions.filter(t=>t.accountId===portfolioId).map(t=>t.date),
-      ...state.fx.filter(f=>f.accountId===portfolioId).map(f=>f.date)
+      ...state.fx.filter(f=>f.accountId===portfolioId).map(f=>f.date),
+      ...(window.PortfolioPerformanceHistory?.points(portfolioId)||[]).map(p=>p.date)
     ].filter(Boolean).sort();
     if(dates.length) return dates[0];
     d.setDate(d.getDate()-366);
@@ -159,7 +161,8 @@ function buildPortfolioHistory(portfolioId,start,pairs,history){
     const cash=Object.entries(cashBal).reduce((s,[c,v])=>s+convert(v,c),0);
     series.push({date,value:invested+cash});
   }
-  const currentSeries=window.PortfolioOverviewModel.currentEndpoint(series,isoDate(new Date()),summaryFor(portfolioId).net);
+  const imported=window.PortfolioPerformanceHistory?.overlay(portfolioId,series,displayCurrency,start,isoDate(new Date()))||series;
+  const currentSeries=window.PortfolioOverviewModel.currentEndpoint(imported,isoDate(new Date()),summaryFor(portfolioId).net);
   return currentSeries;
 }
 
@@ -230,6 +233,7 @@ async function renderPerformanceChart({force=false}={}){
       ?'Stocks use Yahoo Finance closing prices. Option history uses recorded trade prices before the latest manual price. Historical FX uses current reference rates.'
       :'Stocks use Yahoo Finance closing prices. Deposits/withdrawals are included in net assets. Historical FX uses current reference rates.';
     if(note)note.textContent+=' NAV change includes deposits and withdrawals; it is not investment return.';
+    if(note&&window.PortfolioPerformanceHistory?.points(portfolioId).some(p=>p.date>=start))note.textContent+=' Imported history uses source trades and closing prices; statement NAV dates are identified when selected. Earlier broker-linked YTD uses a Modified Dietz estimate.';
     if(note&&coverage.limited)note.textContent+=` Recorded history begins ${start}; earlier values are not reconstructed. Use Performance → YTD for the optional opening-NAV calculation.`;
   }catch(err){
     if(seq!==historyRenderSequence||currentPortfolioId!==portfolioId||displayCurrency!==currency)return;
