@@ -13,9 +13,10 @@ function ensureHistoryPanel(){
   panel.className='panel history-panel';
   panel.innerHTML=`
     <div class="section-head history-head">
-      <div><h2>Portfolio Value</h2><div class="muted">Historical net assets</div></div>
+      <div><h2>Asset trend</h2><div class="muted">Net assets · includes funding</div></div>
       <div id="historyLatest" class="history-latest"></div>
     </div>
+    <div id="historyCoverage" class="history-coverage"></div>
     <div id="historyChart" class="history-chart"><div class="empty">Open a portfolio to load history.</div></div>
     <div id="historyRange" class="history-range"></div>
     <div class="history-periods">
@@ -28,6 +29,12 @@ function ensureHistoryPanel(){
     panel.querySelectorAll('.history-period').forEach(b=>b.classList.toggle('active',b===btn));
     renderPerformanceChart({force:false});
   }));
+}
+
+function portfolioHistoryCoverage(portfolioId,period){
+  const dates=[...state.transactions.filter(t=>t.accountId===portfolioId).map(t=>t.date),...state.fx.filter(f=>f.accountId===portfolioId).map(f=>f.date)].filter(d=>d&&d<=isoDate(new Date())).sort();
+  const profile=window.PortfolioYtdAnchor?.profile(portfolioId);
+  return window.PortfolioOverviewModel.coverage(periodStart(portfolioId,period),isoDate(new Date()),[{firstDate:dates[0],anchored:!!profile,openingNav:profile?.openingNav}]);
 }
 
 function isoDate(d){
@@ -61,7 +68,8 @@ async function fetchHistoryForPortfolio(portfolioId,start,{force=false}={}){
   const key=`${symbols.slice().sort().join(',')}|${start}`;
   const cached=historyMemoryCache.get(key);
   if(!force&&cached&&Date.now()-cached.time<15*60*1000) return {pairs,history:cached.history};
-  const res=await fetch(`${HISTORY_API}?symbols=${encodeURIComponent(symbols.join(','))}&mode=history&start=${encodeURIComponent(start)}`);
+  const lookupDate=new Date(`${start}T00:00:00`);lookupDate.setDate(lookupDate.getDate()-10);
+  const res=await fetch(`${HISTORY_API}?symbols=${encodeURIComponent(symbols.join(','))}&mode=history&start=${encodeURIComponent(isoDate(lookupDate))}`);
   if(!res.ok) throw new Error(`History service returned ${res.status}`);
   const data=await res.json();
   const history=data.history||{};
@@ -181,21 +189,22 @@ function drawHistoryChart(series){
   let min=Math.min(...values),max=Math.max(...values);
   if(max===min){max+=1;min-=1;}
   const w=700,h=230,padX=12,padY=20;
-  const x=i=>padX+(w-padX*2)*(i/(series.length-1));
+  const firstTime=Date.parse(series[0].date),lastTime=Date.parse(series.at(-1).date);
+  const x=date=>padX+(w-padX*2)*(Date.parse(date)-firstTime)/Math.max(1,lastTime-firstTime);
   const y=v=>padY+(h-padY*2)*(1-(v-min)/(max-min));
-  const pts=series.map((p,i)=>`${x(i).toFixed(1)},${y(p.value).toFixed(1)}`).join(' ');
+  const pts=series.map(p=>`${x(p.date).toFixed(1)},${y(p.value).toFixed(1)}`).join(' ');
   const area=`${padX},${h-padY} ${pts} ${w-padX},${h-padY}`;
   const startVal=series[0].value,endVal=series[series.length-1].value,chg=endVal-startVal,chgPct=startVal?chg/Math.abs(startVal)*100:0;
-  const stroke=chg<0?'#ff5d57':'#d9b5e8';
+  const stroke='#ff9b45';
   el.innerHTML=`<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="Portfolio value history">
     <defs><linearGradient id="historyFill" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="${stroke}" stop-opacity=".28"/><stop offset="100%" stop-color="${stroke}" stop-opacity="0"/></linearGradient></defs>
     <line x1="${padX}" y1="${y(max)}" x2="${w-padX}" y2="${y(max)}" class="history-grid-line"/>
     <line x1="${padX}" y1="${y(min)}" x2="${w-padX}" y2="${y(min)}" class="history-grid-line"/>
     <polygon points="${area}" fill="url(#historyFill)"/>
     <polyline points="${pts}" fill="none" stroke="${stroke}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
-    <circle cx="${x(series.length-1)}" cy="${y(endVal)}" r="5" fill="${stroke}"/>
+    <circle cx="${x(series.at(-1).date)}" cy="${y(endVal)}" r="4" fill="${stroke}"/>
   </svg>`;
-  if(latest) latest.innerHTML=`<strong>${money(endVal)}</strong><span class="${chg<0?'negative':'positive'}">${signedMoney(chg)} · ${pct(chgPct)}</span>`;
+  if(latest) latest.innerHTML=`<strong>${money(endVal)}</strong><span>${signedMoney(chg)} (${pct(chgPct)})<small>NAV change · includes funding</small></span>`;
   if(range) range.innerHTML=`<span>${shortDate(series[0].date)}</span><span>${money(min)} – ${money(max)}</span><span>${shortDate(series[series.length-1].date)}</span>`;
 }
 
@@ -211,9 +220,9 @@ async function renderPerformanceChart({force=false}={}){
   if(note)note.textContent='Loading recorded history…';
   if(el) el.innerHTML='<div class="history-loading">Loading history…</div>';
   try{
-    const dates=[...state.transactions.filter(t=>t.accountId===portfolioId).map(t=>t.date),...state.fx.filter(f=>f.accountId===portfolioId).map(f=>f.date)].filter(Boolean).sort();
-    const profile=window.PortfolioYtdAnchor?.profile(portfolioId);
-    const coverage=window.PortfolioOverviewModel.coverage(periodStart(portfolioId,historyPeriod),isoDate(new Date()),[{firstDate:dates[0],anchored:!!profile,openingNav:profile?.openingNav}]);
+    const coverage=portfolioHistoryCoverage(portfolioId,historyPeriod);
+    const coverageEl=document.getElementById('historyCoverage');
+    if(coverageEl)coverageEl.textContent=coverage.limited?`Available history from ${coverage.from} · full ${historyPeriod} asset history unavailable`:`${historyPeriod} · estimated daily net assets`;
     const start=coverage.from;
     const {pairs,history}=await fetchHistoryForPortfolio(portfolioId,start,{force});
     if(seq!==historyRenderSequence||currentPortfolioId!==portfolioId||displayCurrency!==currency) return;
@@ -223,11 +232,13 @@ async function renderPerformanceChart({force=false}={}){
     if(note) note.textContent=hasOptions
       ?'Stocks use Yahoo Finance closing prices. Option history uses recorded trade prices before the latest manual price. Historical FX uses current reference rates.'
       :'Stocks use Yahoo Finance closing prices. Deposits/withdrawals are included in net assets. Historical FX uses current reference rates.';
-    if(note&&coverage.limited)note.textContent+=` Recorded history begins ${start}; earlier values are not reconstructed.`;
+    if(note)note.textContent+=' NAV change includes deposits and withdrawals; it is not investment return.';
+    if(note&&coverage.limited)note.textContent+=` Recorded history begins ${start}; earlier values are not reconstructed. Use Performance → YTD for the optional opening-NAV calculation.`;
   }catch(err){
     if(seq!==historyRenderSequence||currentPortfolioId!==portfolioId||displayCurrency!==currency)return;
     console.error('History chart failed',err);
     if(el) el.innerHTML='<div class="empty">Could not load price history. Current portfolio data is unaffected.</div>';
+    if(note)note.textContent='Historical prices are temporarily unavailable. Current Net Assets still use holdings plus cash / margin.';
   }
 }
 window.renderPerformanceChart=renderPerformanceChart;

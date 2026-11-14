@@ -242,8 +242,9 @@
     if(linked)rows.push(['Brokerage YTD anchor · '+r.anchorDate,percent(r.anchorReturnPct)],['Return since anchor · estimate',percent(r.periodReturnPct)],['NAV alignment · performance only',signMoney(r.navAdjustment,r.currency)]);
     const explanation=linked?`${r.returnUnavailable||'Brokerage YTD is compounded with a Modified Dietz estimate since the anchor. This is an app estimate, not an exact brokerage TWR.'} ${r.autoFlowCount} later deposit/withdrawal records included automatically. ${r.foreignFlows?'Foreign-currency flows use current saved/live FX. ':''}Prices, recorded trades and later flows update the estimate without new statements.`:
       `${r.returnUnavailable||'Modified Dietz return: investment P/L divided by opening NAV plus day-weighted external flows. Not annualized; not exact TWR.'} No daily history is drawn from missing trades. ${r.automaticFlowsAfter?`Historical flows reviewed through ${r.automaticFlowsAfter}; ${r.autoFlowCount} later deposit/withdrawal records included automatically.${r.foreignFlows?' Foreign-currency flows use current saved/live FX.':''}`:`Flow list reviewed through ${r.reviewedThrough}.${r.staleFlows?' Add any later external flows before relying on this result.':''}`}`;
-    return `<div class="ytd-snapshot"><dl>${rows.map(([k,v])=>`<dt>${escape(k)}</dt><dd>${escape(v)}</dd>`).join('')}</dl>
-      <div class="ytd-explanation">${escape(explanation)}</div></div>`;
+    return `<div class="ytd-snapshot"><div class="ytd-result-head"><div><span>YTD investment P/L</span><strong class="${r.profit<0?'negative':'positive'}">${escape(signMoney(r.profit,r.currency))}</strong></div><div><span>${linked?'Broker-linked estimate':'Modified Dietz estimate'}</span><strong>${escape(r.asOf)}</strong></div></div>
+      <div class="ytd-period-note">${escape(r.openingAsOf)} → ${escape(r.asOf)} · No reconstructed daily curve</div>
+      <details class="summary-disclosure ytd-calculation"><summary>Calculation details</summary><dl>${rows.map(([k,v])=>`<dt>${escape(k)}</dt><dd>${escape(v)}</dd>`).join('')}</dl><div class="ytd-explanation">${escape(explanation)}</div></details></div>`;
   }
   function methodNote(r){
     if(!r?.ok)return 'Correct this portfolio’s YTD settings to show its anchored return.';
@@ -289,14 +290,21 @@
   function activeAccounts(){
     const s=getState();return (s?.accounts||[]).filter(a=>enabled(a.id)||s.assets.some(x=>x.accountId===a.id)||s.transactions.some(t=>t.accountId===a.id)||s.fx.some(f=>f.accountId===a.id));
   }
+  function overallResult(){
+    const active=activeAccounts(),selected=active.filter(a=>enabled(a.id));
+    if(!selected.length)return null;
+    const records=selected.map(a=>({id:a.id,profile:enabled(a.id),source:flowSource(a.id),...endpointFor(a.id,enabled(a.id))}));
+    const dates=new Set(records.map(r=>r.asOf));
+    const r=dates.size===1?aggregate(records.map(r=>({...r,endNav:r.nav})),yearNow(),records[0].asOf):{ok:false,errors:['Use the same NAV valuation date for every enabled portfolio before calculating the aggregate.']};
+    if(records.some(r=>r.profile.navSource==='snapshot'))r.navSource='snapshot';
+    return {...r,activeCount:active.length,selectedCount:selected.length};
+  }
+  api.overallResult=overallResult;
   function renderOverall(mode,period){
     if(mode!=='performance'||period!=='YTD')return false;
     const active=activeAccounts(),selected=active.filter(a=>enabled(a.id));
     if(!selected.length)return false;
-    const year=yearNow(),records=selected.map(a=>({id:a.id,profile:enabled(a.id),source:flowSource(a.id),...endpointFor(a.id,enabled(a.id))}));
-    const dates=new Set(records.map(r=>r.asOf));
-    const r=dates.size===1?aggregate(records.map(r=>({...r,endNav:r.nav})),year,records[0].asOf):{ok:false,errors:['Use the same NAV valuation date for every enabled portfolio before calculating the aggregate.']};
-    if(records.some(r=>r.profile.navSource==='snapshot'))r.navSource='snapshot';
+    const r=overallResult();
     const hero=byId('overallReturnHero'),sub=byId('overallReturnSub'),label=byId('overallReturnLabel'),chart=byId('overallReturnChart'),note=byId('overallReturnNote');
     if(hero){hero.textContent=r.ok?percent(r.returnPct):'—';hero.className=`overall-return-hero ${r.ok&&r.returnPct!=null?r.returnPct<0?'negative':'positive':''}`;}
     if(label)label.textContent=selected.length===active.length?'All portfolios · Anchored YTD':'Enabled portfolios only · Anchored YTD';
