@@ -6,7 +6,7 @@ const api=ctx.PortfolioPerformanceHistory;
 const profile={version:1,enabled:true,method:'broker-linked-estimate',openingAsOf:'2025-12-31',openingNav:100,currency:'USD',flowsCompleteThrough:'2026-01-03',externalFlows:[],anchor:{date:'2026-01-03',nav:110,appNav:111,returnPct:10}};
 const history=()=>({version:1,enabled:true,currency:'USD',from:'2026-01-01',through:'2026-01-03',historicalReturnMethod:'modified-dietz',basis:api.basis(profile),points:['2026-01-01','2026-01-02','2026-01-03'].map((date,i)=>({date,nav:100+i*5,quality:i===2?'statement':'estimated',source:'Synthetic source'}))});
 const state=()=>({accounts:[{id:'a',name:'Example',performanceProfiles:{2026:structuredClone(profile)}}],transactions:[{accountId:'a',date:'2026-01-02'}],fx:[]});
-const pack=()=>({format:'portfolio-performance-history',version:1,portfolios:[{accountId:'a',year:'2026',history:history()}]});
+const pack=()=>({format:'portfolio-performance-history',version:1,portfolios:[{accountId:'a',year:'2026',history:{...history(),ledgerBasis:api.ledgerBasis(state(),'a','2026-01-03')}}]});
 test('daily source-labelled history rejects missing days, duplicates, future data, invalid amounts and unsupported quality',()=>{
  assert.equal(api.validate(history(),'2026').length,0);
  for(const mutate of [h=>h.points.splice(1,1),h=>h.points[1].date=h.points[0].date,h=>h.points[0].nav='100',h=>h.points[0].quality='exact',h=>h.points[0].source='',h=>h.through='2026-02-30']){
@@ -16,7 +16,7 @@ test('daily source-labelled history rejects missing days, duplicates, future dat
 });
 test('imports require the same portfolio, opening NAV and reviewed flow basis and reject partial cutover coverage',()=>{
  assert.equal(api.importErrors(pack(),state(),'2026-01-03').length,0);
- for(const mutate of [s=>s.accounts[0].id='other',s=>s.accounts[0].performanceProfiles[2026].enabled=false,s=>s.accounts[0].performanceProfiles[2026].openingNav=999,s=>s.accounts[0].performanceProfiles[2026].externalFlows.push({date:'2026-01-02',amount:20}),s=>s.transactions[0].date='2026-01-04']){
+ for(const mutate of [s=>s.accounts[0].id='other',s=>s.accounts[0].performanceProfiles[2026].enabled=false,s=>s.accounts[0].performanceProfiles[2026].openingNav=999,s=>s.accounts[0].performanceProfiles[2026].externalFlows.push({date:'2026-01-02',amount:20}),s=>s.transactions[0].date='2026-01-04',s=>s.transactions[0].amount=30]){
   const s=state();mutate(s);assert.ok(api.importErrors(pack(),s,'2026-01-03').length);
  }
  const p=pack();p.portfolios.push(p.portfolios[0]);assert.ok(api.importErrors(p,state(),'2026-01-03').length);

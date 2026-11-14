@@ -9,6 +9,13 @@
       anchor:p?.anchor?{date:p.anchor.date,nav:p.anchor.nav,appNav:p.anchor.appNav,returnPct:p.anchor.returnPct}:null,
       flows:(p?.externalFlows||[]).map(f=>({date:f.date,amount:f.amount,counterpartyId:f.counterpartyId||null,transferId:f.transferId||null})).sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b)))};
   }
+  function ledgerBasis(s,id,through){
+    const transactions=s.transactions.filter(t=>t.accountId===id&&t.date<=through).map(t=>({id:t.id,date:t.date,type:t.type,assetId:t.assetId||null,currency:t.currency,qty:t.qty??null,price:t.price??null,amount:t.amount??null,fee:t.fee||0})).sort((a,b)=>String(a.id).localeCompare(String(b.id)));
+    const used=new Set(transactions.map(t=>t.assetId));
+    const assets=(s.assets||[]).filter(a=>a.accountId===id&&used.has(a.id)).map(a=>({id:a.id,type:a.type,symbol:a.symbol,currency:a.currency,multiplier:a.multiplier||1,positionSide:a.positionSide||'long'})).sort((a,b)=>a.id.localeCompare(b.id));
+    const fx=s.fx.filter(f=>f.accountId===id&&f.date<=through).map(f=>({id:f.id,date:f.date,from:f.from,to:f.to,fromAmount:f.fromAmount,toAmount:f.toAmount,fee:f.fee||0})).sort((a,b)=>String(a.id).localeCompare(String(b.id)));
+    return JSON.stringify({transactions,assets,fx});
+  }
   function validate(h,year){
     const errors=[];
     if(!h||h.version!==1||!/^\d{4}$/.test(String(year)))return ['Unsupported NAV history format.'];
@@ -42,18 +49,19 @@
       errors.push(...validate(record.history,record.year));
       if(record.history?.through>asOf)errors.push('History cannot contain future NAV points.');
       if(record.history?.currency!==p.currency||JSON.stringify(record.history?.basis)!==JSON.stringify(basis(p)))errors.push(a.name+': opening NAV or external-flow settings differ from the history basis. Rebuild the history before importing.');
+      if(record.history?.ledgerBasis!==ledgerBasis(state,a.id,record.history?.through))errors.push(a.name+': historical ledger records changed since this history was prepared. Rebuild before importing.');
       const first=[...state.transactions,...state.fx].filter(t=>t.accountId===a.id&&validDate(t.date)&&t.date.slice(0,4)===record.year).map(t=>t.date).sort()[0];
       if(first&&record.history?.through<first)errors.push(a.name+': history does not reach the recorded ledger.');
     }
     return [...new Set(errors)];
   }
-  const api={basis,validate,profileAt,importErrors};root.PortfolioPerformanceHistory=api;
+  const api={basis,ledgerBasis,validate,profileAt,importErrors};root.PortfolioPerformanceHistory=api;
   if(typeof document==='undefined')return;
   const getState=()=>typeof state==='undefined'?null:state;
   const today=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
   function historyFor(id,year){
     const a=getState()?.accounts.find(a=>a.id===id),h=a?.performanceHistories?.[year],p=a?.performanceProfiles?.[year];
-    return h?.enabled===true&&p?.enabled===true&&!validate(h,year).length&&JSON.stringify(h.basis)===JSON.stringify(basis(p))?h:null;
+    return h?.enabled===true&&p?.enabled===true&&!validate(h,year).length&&JSON.stringify(h.basis)===JSON.stringify(basis(p))&&h.ledgerBasis===ledgerBasis(getState(),id,h.through)?h:null;
   }
   function firstDate(id,fallback,year=today().slice(0,4)){const h=historyFor(id,year);return h&&(!fallback||h.through>=fallback)?[h.from,fallback].filter(Boolean).sort()[0]:fallback;}
   function point(id,date){return historyFor(id,date.slice(0,4))?.points.find(p=>p.date===date)||null;}
@@ -92,8 +100,8 @@
   function openImport(){
     let modal=document.getElementById('performanceHistoryModal');
     if(!modal){
-      modal=document.createElement('div');modal.id='performanceHistoryModal';modal.className='modal hidden';
-      modal.innerHTML='<div class="modal-card"><div class="section-head"><h3>Historical NAV</h3><button id="historyImportClose" type="button" class="icon-btn">×</button></div><p class="muted">Import a reviewed history for enabled portfolios. This updates charts and historical YTD only. Your normal Cloud Sync stores it with your portfolio.</p><input id="historyImportFile" type="file" accept="application/json,.json"/><div id="historyImportPreview" class="sync-status"></div><button id="historyImportApply" type="button" class="primary-btn full" disabled>Apply historical NAV</button></div>';
+      modal=document.createElement('div');modal.id='performanceHistoryModal';modal.className='modal-overlay hidden';
+      modal.innerHTML='<div class="modal-card" style="width:min(760px,100%);max-height:92vh;overflow:auto;overflow-wrap:anywhere"><div class="section-head"><h3>Historical NAV</h3><button id="historyImportClose" type="button" class="icon-btn">×</button></div><p class="muted">Import a reviewed history for enabled portfolios. This updates charts and historical YTD only. Your normal Cloud Sync stores it with your portfolio.</p><input id="historyImportFile" type="file" accept="application/json,.json"/><div id="historyImportPreview" class="sync-status"></div><button id="historyImportApply" type="button" class="primary-btn full" disabled>Apply historical NAV</button></div>';
       document.body.appendChild(modal);let pack=null;
       const preview=modal.querySelector('#historyImportPreview'),apply=modal.querySelector('#historyImportApply');
       modal.querySelector('#historyImportClose').onclick=()=>modal.classList.add('hidden');

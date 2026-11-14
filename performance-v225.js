@@ -156,6 +156,12 @@
 
   function externalFlowsByDate(portfolioId,start){
     const flows=new Map();
+    if(window.PortfolioPerformanceHistory?.points(portfolioId).length){
+      const result=window.PortfolioYtdAnchor.flowRecords(portfolioId,start,isoDate(new Date()));
+      if(result.errors.length)throw new Error(result.errors.join(' '));
+      for(const f of result.rows)flows.set(f.date,(flows.get(f.date)||0)+convert(f.amount,f.currency));
+      return flows;
+    }
     state.transactions.filter(t=>t.accountId===portfolioId&&['Deposit','Withdrawal'].includes(t.type)&&(t.date||'')>=start).forEach(t=>{
       const amount=convert(Number(t.amount)||0,t.currency);
       const signed=t.type==='Deposit'?amount:-amount;
@@ -167,6 +173,7 @@
   function trackedReturnSeries(series,portfolioId,start){
     if(!Array.isArray(series)||series.length<2)return [];
     const flows=externalFlowsByDate(portfolioId,start);
+    if(window.PortfolioPerformanceHistory?.points(portfolioId).length)return window.PortfolioOverviewModel.performance(series,[...flows].map(([date,amount])=>({date,amount}))).map(p=>({...p,value:p.value+100}));
     let first=series.findIndex(p=>Number(p.value)>0);
     if(first<0||first>=series.length-1)return [];
     let index=100;
@@ -295,7 +302,7 @@
     }
     if(chart)chart.innerHTML='<div class="history-loading">Loading total-return benchmark…</div>';
     try{
-      const start=periodStart(portfolioId,performancePeriod);
+      const start=window.PortfolioPerformanceHistory?.points(portfolioId).length?coverage.from:periodStart(portfolioId,performancePeriod);
       const [{pairs,history},benchmarks]=await Promise.all([
         fetchHistoryForPortfolio(portfolioId,start,{force}),
         fetchBenchmarks(start,{force})
@@ -335,6 +342,7 @@
           `Benchmark updated ${ageText(benchmarkLastFetchedAt)}.`
         ];
         if(cashFlows)parts.push('Dated deposits/withdrawals in this period are adjusted in the portfolio return proxy.');
+        if(window.PortfolioPerformanceHistory?.points(portfolioId).length)parts.push('Source-derived NAV history and reviewed performance flows are used; earlier initialization funding is excluded.');
         if(hasOptions)parts.push('Historical option values remain approximate before the latest manual option price.');
         if(vooClean.fallback||qqqClean.fallback)parts.push('Some adjusted-close points were unavailable and fell back to closing price.');
         note.textContent=parts.join(' ');

@@ -343,7 +343,7 @@ try{
    const date=new Date(time).toISOString().slice(0,10),flows=PortfolioYtdAnchor.flowRecords(a.id,'2026-01-01',date).rows.reduce((sum,f)=>sum+f.amount,0);
    points.push({date,nav:p.openingNav+flows+(time-Date.parse('2026-01-01'))/86400000*.01,quality:date==='2026-07-31'?'statement':'estimated',source:'Synthetic source'});
   }
-  return {accountId:a.id,year:'2026',history:{version:1,enabled:true,currency:'USD',from:'2026-01-01',through:'2026-11-12',historicalReturnMethod:'modified-dietz',basis:PortfolioPerformanceHistory.basis(p),points}};
+  return {accountId:a.id,year:'2026',history:{version:1,enabled:true,currency:'USD',from:'2026-01-01',through:'2026-11-12',historicalReturnMethod:'modified-dietz',basis:PortfolioPerformanceHistory.basis(p),ledgerBasis:PortfolioPerformanceHistory.ledgerBasis(state,a.id,'2026-11-12'),points}};
  })}));
  await histPage.locator('#cloudSyncBtn').click();await histPage.locator('#importPerformanceHistoryBtn').click();
  const wrong=structuredClone(historyPack);wrong.portfolios[0].history.basis.openingNav=999;
