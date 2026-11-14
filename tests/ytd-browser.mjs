@@ -37,12 +37,12 @@ const origin='http://127.0.0.1:'+server.address().port;
 const browser=await chromium.launch({headless:true,args:['--no-sandbox']});
 const contexts=[];const errors=[];
 const history={};for(const [s,start,end] of [['AAA',10,12],['BBB',5,6],['VOO',100,110],['QQQ',200,220]])history[s]=[{date:'2025-12-31',close:start,adjClose:start},{date:'2026-01-02',close:start,adjClose:start},{date:'2026-01-12',close:start,adjClose:start},{date:'2026-11-13',close:end,adjClose:end}];
-async function makePage(variant,{syncKey=null,mobile=false}={}){
+async function makePage(variant,{syncKey=null,mobile=false,initialState=fixture,historyDelay=0,failHistory=false}={}){
  const ctx=await browser.newContext({viewport:mobile?{width:390,height:844}:{width:1200,height:1000},acceptDownloads:true});contexts.push(ctx);
  await ctx.addInitScript(({fixture,syncKey,fixed})=>{
   const RealDate=Date;globalThis.Date=class extends RealDate{constructor(...args){super(...(args.length?args:[fixed]));}static now(){return new RealDate(fixed).getTime();}};
   localStorage.setItem('portfolioTrackerV2',JSON.stringify(fixture));if(syncKey)localStorage.setItem('portfolioTrackerSyncKeyV1',syncKey);
- },{fixture,syncKey,fixed});
+ },{fixture:initialState,syncKey,fixed});
  await ctx.route('**/*',async route=>{
   const req=route.request(),url=req.url();if(url.startsWith(origin)){await route.continue();return;}
   if(url.includes('supabase.co/functions/v1/portfolio-sync')){
@@ -54,6 +54,10 @@ async function makePage(variant,{syncKey=null,mobile=false}={}){
     docs.set(key,{found:true,payload:body.payload,updated_at});await route.fulfill({json:{ok:true,updated_at}});return;
    }
    await route.fulfill({json:docs.get(key)||{found:false}});return;
+  }
+  if(url.includes('mode=history')){
+   if(historyDelay)await new Promise(resolve=>setTimeout(resolve,historyDelay));
+   if(failHistory){await route.fulfill({status:503,json:{error:'synthetic history outage'}});return;}
   }
   await route.fulfill({json:{quotes:{AAA:{price:12,previousClose:11,name:'Example A',currency:'USD'},BBB:{price:6,previousClose:5,name:'Example B',currency:'USD'},VOO:{price:110,previousClose:109},QQQ:{price:220,previousClose:218}},history,fx:{HKD:1,USD:7.8,KRW:0.0056,EUR:8.5},updatedAt:fixed}});
  });
@@ -207,6 +211,57 @@ try{
  await linkedDownload.waitForFunction(()=>state.accounts[0].performanceProfiles?.['2026']?.method==='broker-linked-estimate');
  assert.ok(Math.abs((await linkedDownload.evaluate(()=>PortfolioYtdAnchor.resultFor('one'))).returnPct-25)<1e-8);
  console.log('PASS: broker-linked settings encrypted upload/download and separate-key isolation.');
+
+ const overviewFixture=structuredClone(fixture);
+ for(const t of overviewFixture.transactions)t.date='2026-08-13';
+ overviewFixture.accounts[0].performanceProfiles={2026:{version:1,enabled:true,method:'modified-dietz',openingAsOf:'2025-12-31',openingNav:100,currency:'USD',navSource:'app',flowsCompleteThrough:'2026-11-13',externalFlows:[]}};
+ overviewFixture.accounts[1].performanceProfiles={2026:{version:1,enabled:true,method:'broker-linked-estimate',openingAsOf:'2025-12-31',openingNav:0,currency:'USD',navSource:'app',flowsCompleteThrough:'2026-11-12',externalFlows:[{id:'actual',date:'2026-01-10',amount:100}],anchor:{date:'2026-11-12',returnPct:5,nav:99,appNav:109}}};
+ const overview=await makePage('new',{initialState:overviewFixture,historyDelay:300});
+ const overviewFinancial=page=>page.evaluate(()=>JSON.stringify({accounts:state.accounts,transactions:state.transactions,fx:state.fx,settings:state.settings}));
+ const overviewState=await overviewFinancial(overview);
+ assert.equal(await overview.locator('.overall-return-period.active').textContent(),'YTD','opted-in overview did not default to YTD');
+ assert.equal(await overview.locator('#overallReturnHero').textContent(),await overview.locator('#homeNetAssets').textContent());
+ assert.match(await overview.locator('#overallReturnNote').textContent(),/2026-08-13/,'missing history was drawn from zero');
+ const immediate=await overview.evaluate(()=>{state.assets[0].price=13;renderHome();void renderOverallReturn({force:true});return {hero:document.getElementById('overallReturnHero').textContent,net:money(summaryFor().net)};});
+ assert.equal(immediate.hero,immediate.net,'Value waited for historical service to update');
+ await overview.locator('#homeCurrency').selectOption('USD');
+ await overview.waitForTimeout(600);
+ assert.equal(await overview.locator('#overallReturnHero').textContent(),await overview.locator('#homeNetAssets').textContent(),'Value currency differs from header');
+ await overview.locator('.overall-return-tab[data-mode="performance"]').click();
+ assert.match(await overview.locator('#overallReturnChart').textContent(),/NAV before performance alignment/,'aggregate hid accounting/performance NAV difference');
+ const groupResult=await overview.evaluate(()=>PortfolioYtdAnchor.aggregate(state.accounts.map(a=>({id:a.id,profile:a.performanceProfiles[2026],endNav:summaryFor(a.id).net,source:{accountId:a.id,transactions:state.transactions,rates:{USD:1,HKD:1/7.8}}})),2026,'2026-11-13'));
+ assert.equal(await overview.locator('#overallReturnHero').textContent(),`${groupResult.returnPct>=0?'+':''}${groupResult.returnPct.toFixed(2)}%`);
+ assert.equal(await overview.locator('#overallReturnBreakdown .overview-account').count(),2);
+ await overview.locator('.overall-return-period[data-period="1Y"]').click();
+ assert.equal(await overview.locator('#overallReturnHero').textContent(),'—');assert.match(await overview.locator('#overallReturnChart').textContent(),/Opening trades are incomplete/);
+ await overview.locator('.overall-return-tab[data-mode="value"]').click();
+ await overview.locator('#homeNetAssetPrivacyBtn').click();
+ assert.equal(await overview.locator('#homeNetAssets').textContent(),'******');assert.equal(await overview.locator('#overallReturnHero').textContent(),'******');
+ await overview.evaluate(()=>{state.assets[0].price=14;renderAll();});await overview.waitForTimeout(400);
+ await overview.locator('#homeNetAssetPrivacyBtn').click();
+ assert.equal(await overview.locator('#overallReturnHero').textContent(),await overview.locator('#homeNetAssets').textContent(),'privacy restored a stale value');
+ await overview.locator('.overall-return-period[data-period="1M"]').click();await overview.reload();await overview.waitForSelector('body.app-ready');await overview.waitForTimeout(400);
+ assert.equal(await overview.locator('.overall-return-period.active').textContent(),'1M','overview period preference did not survive reload');
+ assert.equal(await overview.locator('.overall-return-tab.active').textContent(),'Value');
+ assert.equal(await overviewFinancial(overview),overviewState,'overview navigation changed financial state');
+ await overview.locator('#overallReturnRefresh').click();await overview.waitForFunction(()=>!document.getElementById('overallReturnRefresh').disabled);
+ assert.equal(await overview.locator('#overallReturnHero').textContent(),await overview.locator('#homeNetAssets').textContent());
+ console.log('PASS: live Value equality, currency, YTD default, combined performance bridge, missing-history guard, privacy, preferences, refresh and unchanged financial state.');
+
+ const outage=await makePage('new',{failHistory:true});
+ assert.equal(await outage.locator('#overallReturnHero').textContent(),await outage.locator('#homeNetAssets').textContent(),'history outage hid current NAV');
+ assert.match(await outage.locator('#overallReturnChart').textContent(),/Could not load/);
+ const racing=await makePage('new',{historyDelay:700});
+ await racing.evaluate(()=>openPortfolio('one'));await racing.waitForTimeout(50);await racing.evaluate(()=>openPortfolio('two'));await racing.waitForTimeout(1100);
+ const raced=await racing.evaluate(()=>({latest:document.getElementById('historyLatest').textContent,expected:money(summaryFor('two').net)}));
+ assert.ok(raced.latest.includes(raced.expected),'previous portfolio history overwrote current portfolio');
+ const overviewMobile=await makePage('new',{mobile:true,initialState:overviewFixture});
+ assert.ok(await overviewMobile.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'mobile overview overflow');
+ await overviewMobile.locator('#overallReturnPanel').screenshot({path:path.join(output,'overview-mobile-value.png')});
+ await overviewMobile.locator('.overall-return-tab[data-mode="performance"]').click();
+ assert.ok(await overviewMobile.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'mobile performance overflow');
+ await overviewMobile.locator('#overallReturnPanel').screenshot({path:path.join(output,'overview-mobile-performance.png')});
+ console.log('PASS: history outage retains NAV, portfolio navigation rejects stale results, mobile overview/performance layout.');
  assert.deepEqual(errors,[],'browser runtime errors');
  console.log('PASS: no browser runtime errors.');
 }catch(error){

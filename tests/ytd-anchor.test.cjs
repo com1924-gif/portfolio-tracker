@@ -149,6 +149,7 @@ test('mixed-method aggregate uses combined NAV and flows rather than brokerage p
   const linked=linkedProfile(),records=[{id:'one',profile:linked,endNav:100,source:source()},
     {id:'two',profile:profile({openingNav:120}),endNav:120}];
   const r=api.aggregate(records,2024,'2024-04-09');assert.equal(r.ok,true);approx(r.profit,30);approx(r.returnPct,15);assert.equal(r.linkedCount,1);
+  approx(r.rawAppNav,220);approx(r.navAdjustment,10);approx(r.endNav,r.rawAppNav+r.navAdjustment);
   const changed=api.aggregate([{...records[0],profile:{...linked,anchor:{...linked.anchor,returnPct:80}}},records[1]],2024,'2024-04-09');
   approx(changed.returnPct,r.returnPct,'group averaged individual returns');
 });

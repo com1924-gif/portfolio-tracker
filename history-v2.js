@@ -1,6 +1,7 @@
 const HISTORY_API='https://portfolio-tracker-quotes.vercel.app/';
 let historyPeriod='3M';
 const historyMemoryCache=new Map();
+let historyRenderSequence=0;
 
 function ensureHistoryPanel(){
   if(document.getElementById('portfolioHistoryPanel')) return;
@@ -132,7 +133,7 @@ function buildPortfolioHistory(portfolioId,start,pairs,history){
   for(const t of state.transactions.filter(t=>t.accountId===portfolioId&&t.date>=start)) dateSet.add(t.date);
   for(const f of state.fx.filter(f=>f.accountId===portfolioId&&f.date>=start)) dateSet.add(f.date);
   dateSet.add(isoDate(new Date()));
-  const dates=[...dateSet].filter(d=>d>=start).sort();
+  const dates=[...dateSet].filter(d=>d>=start&&d<=isoDate(new Date())).sort();
   const series=[];
   for(const date of dates){
     let invested=0;
@@ -150,13 +151,14 @@ function buildPortfolioHistory(portfolioId,start,pairs,history){
     const cash=Object.entries(cashBal).reduce((s,[c,v])=>s+convert(v,c),0);
     series.push({date,value:invested+cash});
   }
-  if(series.length>280){
-    const step=(series.length-1)/279;
+  const currentSeries=window.PortfolioOverviewModel.currentEndpoint(series,isoDate(new Date()),summaryFor(portfolioId).net);
+  if(currentSeries.length>280){
+    const step=(currentSeries.length-1)/279;
     const sampled=[];
-    for(let i=0;i<280;i++) sampled.push(series[Math.round(i*step)]);
+    for(let i=0;i<280;i++) sampled.push(currentSeries[Math.round(i*step)]);
     return [...new Map(sampled.map(p=>[p.date,p])).values()];
   }
-  return series;
+  return currentSeries;
 }
 
 function shortDate(s){
@@ -200,20 +202,30 @@ function drawHistoryChart(series){
 async function renderPerformanceChart({force=false}={}){
   ensureHistoryPanel();
   if(!currentPortfolioId) return;
+  const portfolioId=currentPortfolioId,currency=displayCurrency,seq=++historyRenderSequence;
   const el=document.getElementById('historyChart');
   const note=document.getElementById('historyNote');
+  const latest=document.getElementById('historyLatest'),range=document.getElementById('historyRange');
+  if(latest)latest.textContent=money(summaryFor(portfolioId).net);
+  if(range)range.textContent='';
+  if(note)note.textContent='Loading recorded history…';
   if(el) el.innerHTML='<div class="history-loading">Loading history…</div>';
   try{
-    const start=periodStart(currentPortfolioId,historyPeriod);
-    const {pairs,history}=await fetchHistoryForPortfolio(currentPortfolioId,start,{force});
-    if(currentPortfolioId==null) return;
-    const series=buildPortfolioHistory(currentPortfolioId,start,pairs,history);
+    const dates=[...state.transactions.filter(t=>t.accountId===portfolioId).map(t=>t.date),...state.fx.filter(f=>f.accountId===portfolioId).map(f=>f.date)].filter(Boolean).sort();
+    const profile=window.PortfolioYtdAnchor?.profile(portfolioId);
+    const coverage=window.PortfolioOverviewModel.coverage(periodStart(portfolioId,historyPeriod),isoDate(new Date()),[{firstDate:dates[0],anchored:!!profile,openingNav:profile?.openingNav}]);
+    const start=coverage.from;
+    const {pairs,history}=await fetchHistoryForPortfolio(portfolioId,start,{force});
+    if(seq!==historyRenderSequence||currentPortfolioId!==portfolioId||displayCurrency!==currency) return;
+    const series=buildPortfolioHistory(portfolioId,start,pairs,history);
     drawHistoryChart(series);
-    const hasOptions=state.assets.some(a=>a.accountId===currentPortfolioId&&a.type==='option');
+    const hasOptions=state.assets.some(a=>a.accountId===portfolioId&&a.type==='option');
     if(note) note.textContent=hasOptions
       ?'Stocks use Yahoo Finance closing prices. Option history uses recorded trade prices before the latest manual price. Historical FX uses current reference rates.'
       :'Stocks use Yahoo Finance closing prices. Deposits/withdrawals are included in net assets. Historical FX uses current reference rates.';
+    if(note&&coverage.limited)note.textContent+=` Recorded history begins ${start}; earlier values are not reconstructed.`;
   }catch(err){
+    if(seq!==historyRenderSequence||currentPortfolioId!==portfolioId||displayCurrency!==currency)return;
     console.error('History chart failed',err);
     if(el) el.innerHTML='<div class="empty">Could not load price history. Current portfolio data is unaffected.</div>';
   }
@@ -222,7 +234,8 @@ window.renderPerformanceChart=renderPerformanceChart;
 
 ensureHistoryPanel();
 const originalOpenPortfolio=window.openPortfolio;
-window.openPortfolio=id=>{originalOpenPortfolio(id);setTimeout(()=>renderPerformanceChart(),0);};
+window.openPortfolio=id=>{historyRenderSequence++;originalOpenPortfolio(id);document.getElementById('historyLatest').textContent=money(summaryFor(id).net);document.getElementById('historyRange').textContent='';document.getElementById('historyChart').innerHTML='<div class="history-loading">Loading history…</div>';setTimeout(()=>renderPerformanceChart(),0);};
 const originalRenderAll=renderAll;
 renderAll=function(){originalRenderAll();if(currentPortfolioId)setTimeout(()=>renderPerformanceChart(),0);};
 ['homeCurrency','portfolioCurrency'].forEach(id=>document.getElementById(id)?.addEventListener('change',()=>{if(currentPortfolioId)renderPerformanceChart();}));
+

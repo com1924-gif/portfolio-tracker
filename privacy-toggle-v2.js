@@ -16,7 +16,7 @@
     .net-asset-privacy-btn:hover{background:rgba(255,255,255,.07);color:var(--text)}
     .net-asset-privacy-btn:focus-visible{outline:2px solid currentColor;outline-offset:2px}
     .net-asset-privacy-btn svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-    #homeNetAssets.net-assets-hidden{letter-spacing:.08em}
+    .net-assets-hidden{letter-spacing:.08em}
   `;
   document.head.appendChild(style);
 
@@ -55,27 +55,26 @@
     const btn=ensureButton();
     if(!amount||!btn)return;
 
-    if(!amount.dataset.visibleValue||!hidden){
-      if(!amount.classList.contains('net-assets-hidden'))amount.dataset.visibleValue=amount.textContent;
-      else if(!hidden&&amount.dataset.visibleValue)amount.textContent=amount.dataset.visibleValue;
+    const valueHero=document.getElementById('overallReturnPanel')?.dataset.mode==='value'?document.getElementById('overallReturnHero'):null;
+    for(const el of [amount,valueHero].filter(Boolean)){
+      if(el.textContent!=='******')el.dataset.visibleValue=el.textContent;
+      if(hidden)el.textContent='******';
+      else if(el.textContent==='******'&&el.dataset.visibleValue)el.textContent=el.dataset.visibleValue;
+      el.classList.toggle('net-assets-hidden',hidden);
     }
-
+    if(!valueHero)document.getElementById('overallReturnHero')?.classList.remove('net-assets-hidden');
     if(hidden){
-      if(!amount.classList.contains('net-assets-hidden'))amount.dataset.visibleValue=amount.textContent;
-      amount.textContent='******';
-      amount.classList.add('net-assets-hidden');
       btn.innerHTML=eyeClosed;
       btn.setAttribute('aria-label','Show Total Net Assets');
       btn.title='Show Total Net Assets';
     }else{
-      if(amount.dataset.visibleValue)amount.textContent=amount.dataset.visibleValue;
-      amount.classList.remove('net-assets-hidden');
       btn.innerHTML=eyeOpen;
       btn.setAttribute('aria-label','Hide Total Net Assets');
       btn.title='Hide Total Net Assets';
     }
     btn.setAttribute('aria-pressed',hidden?'true':'false');
   }
+  window.PortfolioNetAssetPrivacy={apply:applyPrivacy,isHidden:()=>hidden};
 
   const originalRenderHome=window.renderHome;
   if(typeof originalRenderHome==='function'){

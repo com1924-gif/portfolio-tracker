@@ -3,9 +3,16 @@
   window.__overallReturnSummaryV22517=true;
 
   const PERIODS=['1W','MTD','1M','3M','YTD','1Y','ALL'];
-  let mode='value';
-  let period='1Y';
+  const VIEW_KEY='portfolioOverviewViewV1';
+  let savedView=null;
+  try{savedView=JSON.parse(localStorage.getItem(VIEW_KEY)||'null');}catch{}
+  let mode=['value','performance'].includes(savedView?.mode)?savedView.mode:'value';
+  let period=PERIODS.includes(savedView?.period)?savedView.period:'1Y';
+  let selectedPeriod=PERIODS.includes(savedView?.period);
   let renderSeq=0;
+  let refreshing=false;
+  const model=window.PortfolioOverviewModel;
+  const rememberView=()=>{try{localStorage.setItem(VIEW_KEY,JSON.stringify({mode,period}));}catch{}};
 
   const style=document.createElement('style');
   style.textContent=`
@@ -26,6 +33,15 @@
     .overall-return-period.active{background:#24242b;color:var(--accent)}
     .overall-return-note{font-size:11px;line-height:1.45;color:var(--muted);margin-top:10px}
     .overall-return-loading{color:var(--muted);font-size:12px}
+    .overall-return-tools{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}
+    .overall-return-updated{font-size:11px;color:var(--muted);line-height:1.4}
+    .overall-return-refresh{font-size:12px;white-space:nowrap}
+    .overall-return-breakdown{margin-top:16px;border-top:1px solid var(--line);padding-top:12px}
+    .overview-account{display:grid;grid-template-columns:minmax(80px,1fr) auto;gap:5px 12px;padding:10px 0;border-bottom:1px solid var(--line)}
+    .overview-account button{text-align:left;border:0;padding:0;background:none;color:var(--text);font:inherit;font-weight:700;cursor:pointer}
+    .overview-account .overview-method{font-size:11px;color:var(--muted);overflow-wrap:anywhere}
+    .overview-account .overview-result{text-align:right;font-weight:700;font-size:13px}
+    .overview-account small{display:block;font-weight:400;color:var(--muted);margin-top:4px}
     @media(max-width:520px){
       .overall-return-body{padding:15px 12px 13px}
       .overall-return-hero{font-size:28px}
@@ -44,16 +60,18 @@
       panel.className='panel overall-return-panel';
       panel.innerHTML=`
         <div class="overall-return-head">
-          <button type="button" class="overall-return-tab active" data-mode="value">Value</button>
-          <button type="button" class="overall-return-tab" data-mode="performance">Performance</button>
+          <button type="button" class="overall-return-tab ${mode==='value'?'active':''}" data-mode="value">Value</button>
+          <button type="button" class="overall-return-tab ${mode==='performance'?'active':''}" data-mode="performance">Performance</button>
         </div>
         <div class="overall-return-body">
+          <div class="overall-return-tools"><span id="overallReturnUpdated" class="overall-return-updated"></span><button type="button" id="overallReturnRefresh" class="ghost-btn overall-return-refresh">Refresh overview</button></div>
           <div id="overallReturnLabel" class="overall-return-label">All portfolios · Net Assets</div>
           <div id="overallReturnHero" class="overall-return-hero">—</div>
           <div id="overallReturnSub" class="overall-return-sub"></div>
           <div id="overallReturnChart" class="overall-return-chart"><div class="overall-return-loading">Loading overall history…</div></div>
           <div id="overallReturnPeriods" class="overall-return-periods"></div>
           <div id="overallReturnNote" class="overall-return-note"></div>
+          <div id="overallReturnBreakdown" class="overall-return-breakdown hidden"></div>
         </div>`;
       home.appendChild(panel);
     }
@@ -61,9 +79,11 @@
       panel.dataset.overallReturnBound='1';
       panel.querySelectorAll('.overall-return-tab').forEach(btn=>btn.addEventListener('click',()=>{
         mode=btn.dataset.mode;
+        rememberView();
         panel.querySelectorAll('.overall-return-tab').forEach(b=>b.classList.toggle('active',b===btn));
         renderOverallReturn();
       }));
+      panel.querySelector('#overallReturnRefresh').addEventListener('click',refreshOverview);
     }
     renderPeriods();
     return panel;
@@ -75,6 +95,7 @@
     el.innerHTML=PERIODS.map(p=>`<button type="button" class="overall-return-period ${p===period?'active':''}" data-period="${p}">${p}</button>`).join('');
     el.querySelectorAll('.overall-return-period').forEach(btn=>btn.addEventListener('click',()=>{
       period=btn.dataset.period;
+      selectedPeriod=true;rememberView();
       renderPeriods();
       renderOverallReturn();
     }));
@@ -120,6 +141,49 @@
     );
   }
 
+  function historyCoverage(start){
+    const asOf=dateString(new Date());
+    const records=activeAccounts().map(a=>{
+      const dates=[...state.transactions.filter(t=>t.accountId===a.id).map(t=>t.date),...state.fx.filter(f=>f.accountId===a.id).map(f=>f.date)].filter(d=>d&&d<=asOf).sort();
+      const p=window.PortfolioYtdAnchor?.profile(a.id);
+      return {firstDate:dates[0],anchored:!!p,openingNav:p?.openingNav};
+    });
+    return model.coverage(start,asOf,records);
+  }
+
+  function updateQuoteStatus(){
+    const el=document.getElementById('overallReturnUpdated');if(!el)return;
+    const open=summaryFor().hs||[],times=open.filter(a=>a.type==='stock').map(a=>Date.parse(a.quoteUpdatedAt||'')).filter(Number.isFinite);
+    const missing=open.filter(a=>a.type==='stock'&&!a.quoteUpdatedAt).length;
+    const options=open.filter(a=>a.type==='option').length;
+    const oldest=times.length?Math.min(...times):null;
+    const when=oldest==null?'Saved stock prices':`Stocks checked ${new Date(oldest).toLocaleTimeString('en-HK',{hour:'2-digit',minute:'2-digit'})}`;
+    el.textContent=when+(missing?` · ${missing} without quote time`:'')+(options?' · options use saved marks':'');
+  }
+
+  function applyPrivacy(){window.PortfolioNetAssetPrivacy?.apply();}
+
+  function renderBreakdown(){
+    const el=document.getElementById('overallReturnBreakdown');if(!el)return;
+    const accounts=activeAccounts();el.classList.toggle('hidden',!accounts.length);
+    el.innerHTML=accounts.map(a=>{
+      const nav=summaryFor(a.id).net,r=window.PortfolioYtdAnchor?.resultFor(a.id);
+      const method=r?.ok?(r.method==='broker-linked-estimate'?'Broker-linked estimate':'Modified Dietz'):'Recorded transactions';
+      const result=r?.ok?`${r.returnPct==null?'—':pct(r.returnPct)}<small>YTD P/L ${esc(signedMoney(convert(r.profit,r.currency)))}</small>`:(r?'YTD settings need attention':'YTD not enabled');
+      return `<div class="overview-account"><div><button type="button" data-account="${esc(a.id)}">${esc(a.name)}</button><div class="overview-method">${esc(money(nav))} · Net Assets</div></div><div class="overview-result">${result}<small>${esc(r?.ok?r.currency+' · '+method:method)}</small></div></div>`;
+    }).join('');
+    el.querySelectorAll('[data-account]').forEach(btn=>btn.addEventListener('click',()=>window.openPortfolio(btn.dataset.account)));
+  }
+
+  async function refreshOverview(){
+    if(refreshing)return;refreshing=true;
+    const btn=document.getElementById('overallReturnRefresh');if(btn){btn.disabled=true;btn.textContent='Refreshing…';}
+    try{
+      await Promise.allSettled([window.refreshStockPrices?.({force:true,silent:true}),window.refreshLiveFx?.({force:true,silent:true})]);
+      await renderOverallReturn({force:true});
+    }finally{refreshing=false;if(btn){btn.disabled=false;btn.textContent='Refresh overview';}}
+  }
+
   async function buildOverallValueSeries(start,{force=false}={}){
     const accounts=activeAccounts();
     if(!accounts.length)return [];
@@ -140,7 +204,7 @@
 
     const today=dateString(new Date());
     const out=[];
-    for(const date of [...dates].filter(Boolean).sort()){
+    for(const date of [...dates].filter(d=>d&&d>=start&&d<=today).sort()){
       let total=0;
       for(const {account,lookups} of fetched){
         const assets=state.assets.filter(a=>a.accountId===account.id);
@@ -164,7 +228,7 @@
       }
       out.push({date,value:total});
     }
-    return out;
+    return model.currentEndpoint(out,today,summaryFor().net);
   }
 
   function flowsByDate(start){
@@ -179,24 +243,7 @@
 
   function performanceSeries(values,start){
     if(!Array.isArray(values)||values.length<2)return [];
-    const flows=flowsByDate(start);
-    let first=values.findIndex(p=>Number(p.value)>0);
-    if(first<0||first>=values.length)return [];
-    let index=1;
-    let prev=Number(values[first].value);
-    const out=[{date:values[first].date,value:0}];
-    for(let i=first+1;i<values.length;i++){
-      const cur=Number(values[i].value);
-      if(!(prev>0)||!Number.isFinite(cur)){prev=cur;continue;}
-      const flow=flows.get(values[i].date)||0;
-      const r=(cur-flow-prev)/prev;
-      if(Number.isFinite(r)&&r>-1){
-        index*=1+r;
-        out.push({date:values[i].date,value:(index-1)*100});
-      }
-      prev=cur;
-    }
-    return out;
+    return model.performance(values,[...flowsByDate(start)].map(([date,amount])=>({date,amount})));
   }
 
   function compactValue(n){
@@ -259,6 +306,7 @@
   }
 
   async function renderOverallReturn({force=false}={}){
+    if(!selectedPeriod)period=activeAccounts().some(a=>window.PortfolioYtdAnchor?.profile(a.id))?'YTD':'1Y';
     ensurePanel();
     if(currentPortfolioId!==null)return;
     const seq=++renderSeq;
@@ -267,12 +315,25 @@
     const sub=document.getElementById('overallReturnSub');
     const label=document.getElementById('overallReturnLabel');
     const note=document.getElementById('overallReturnNote');
-    if(window.PortfolioYtdAnchor?.renderOverall(mode,period))return;
+    document.getElementById('overallReturnPanel').dataset.mode=mode;
+    updateQuoteStatus();renderBreakdown();
+    if(window.PortfolioYtdAnchor?.renderOverall(mode,period)){applyPrivacy();return;}
     if(chart)chart.innerHTML='<div class="overall-return-loading">Loading overall history…</div>';
     if(label)label.textContent=mode==='value'?'All portfolios · Net Assets':'All portfolios · Total Return';
+    if(hero){hero.textContent=mode==='value'?money(summaryFor().net):'—';hero.className='overall-return-hero';}
+    if(sub){sub.textContent=mode==='value'?'Current holdings + cash / margin':'Loading tracked return…';sub.className='overall-return-sub';}
+    if(note)note.textContent=mode==='value'?'Current Net Assets match the total above. Loading recorded history…':'';
+    applyPrivacy();
 
     try{
-      const start=startForPeriod(period);
+      const requestedStart=startForPeriod(period),coverage=historyCoverage(requestedStart),start=coverage.from;
+      if(mode==='performance'&&coverage.missingOpeningHistory){
+        if(hero)hero.textContent='—';
+        if(sub)sub.textContent='Full-period return unavailable';
+        if(chart)chart.innerHTML='<div class="empty">Opening trades are incomplete for this range. Choose YTD for the opening-NAV calculation.</div>';
+        if(note)note.textContent=`Recorded combined history begins ${start}. A full-period curve cannot be reconstructed from the available transactions.`;
+        return;
+      }
       const values=await buildOverallValueSeries(start,{force});
       if(seq!==renderSeq||currentPortfolioId!==null)return;
 
@@ -290,7 +351,7 @@
         drawChart(perf,true);
       }else{
         const first=values.length?Number(values[0].value):null;
-        const end=values.length?Number(values[values.length-1].value):null;
+        const end=summaryFor().net;
         const change=first!=null&&end!=null?end-first:null;
         const changePct=first?change/Math.abs(first)*100:null;
         if(hero){
@@ -298,7 +359,7 @@
           hero.className='overall-return-hero';
         }
         if(sub){
-          sub.innerHTML=change==null?'':`<span class="${change<0?'negative':'positive'}">${signedMoney(change)}${changePct==null?'':` (${pct(changePct)})`}</span> · ${periodCaption()}`;
+          sub.innerHTML=change==null?'':`<span class="${change<0?'negative':'positive'}">${signedMoney(change)}${changePct==null?'':` (${pct(changePct)})`}</span> · NAV change${coverage.limited?' since '+start:' · '+periodCaption()} · includes funding`;
           sub.className='overall-return-sub';
         }
         drawChart(values,false);
@@ -311,17 +372,21 @@
           ?['Value is combined Net Assets across all portfolios and includes recorded deposits / withdrawals.']
           :['Performance removes recorded deposits / withdrawals from the selected period and compounds the remaining portfolio return.'];
         parts.push('Historical FX uses the current saved/reference FX rates.');
+        if(coverage.limited)parts.push(`Available combined history: ${start} to ${coverage.asOf}; earlier values are not reconstructed. NAV change is not investment return.`);
         if(hasOptions)parts.push('Historical option values are approximate before the latest recorded/manual option price.');
         if(mode==='performance'&&period==='ALL')parts.push('All is a tracked-period proxy, not formal Lifetime TWR/XIRR, because older contribution dates may be incomplete.');
         if(mode==='performance'&&!hasFlows)parts.push('No dated external cash flows were recorded in this period.');
         note.textContent=parts.join(' ');
       }
+      applyPrivacy();
     }catch(err){
+      if(seq!==renderSeq||currentPortfolioId!==null)return;
       console.error('Overall return summary failed',err);
       if(chart)chart.innerHTML='<div class="empty">Could not load overall history. Current portfolio data is unaffected.</div>';
-      if(hero)hero.textContent='—';
-      if(sub)sub.textContent='';
-      if(note)note.textContent='Historical chart is temporarily unavailable.';
+      if(hero)hero.textContent=mode==='value'?money(summaryFor().net):'—';
+      if(sub)sub.textContent=mode==='value'?'Current holdings + cash / margin':'';
+      if(note)note.textContent='Historical chart is temporarily unavailable. Current Net Assets remain available.';
+      applyPrivacy();
     }
   }
   window.renderOverallReturn=renderOverallReturn;
