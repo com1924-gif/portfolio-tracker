@@ -34,7 +34,7 @@ const server=http.createServer(async(req,res)=>{try{
 }catch{res.writeHead(404).end();}});
 await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
 const origin='http://127.0.0.1:'+server.address().port;
-const browser=await chromium.launch({headless:true,args:['--no-sandbox']});
+const browser=await chromium.launch({headless:true,args:['--no-sandbox'],...(process.env.CHROMIUM_EXECUTABLE?{executablePath:process.env.CHROMIUM_EXECUTABLE}:{})});
 const contexts=[];const errors=[];
 const history={};for(const [s,start,end] of [['AAA',10,12],['BBB',5,6],['VOO',100,110],['QQQ',200,220]])history[s]=[{date:'2025-12-31',close:start,adjClose:start},{date:'2026-01-02',close:start,adjClose:start},{date:'2026-01-12',close:start,adjClose:start},{date:'2026-11-13',close:end,adjClose:end}];
 async function makePage(variant,{syncKey=null,mobile=false,touch=false,initialState=fixture,historyDelay=0,failHistory=false}={}){
@@ -333,6 +333,54 @@ try{
  await homeCursor.press('End');assert.equal(await cursorPage.locator('#overallReturnChart .chart-inspector-values>div:last-child>strong').textContent(),await cursorPage.locator('#homeSummaryPulse .summary-ytd-link>strong').textContent(),'aggregate cursor differs from configured overview YTD');
  assert.equal(await overviewFinancial(cursorPage),cursorState,'chart inspection changed financial state');
  console.log('PASS: touch drag, keyboard dates, selected-date NAV/YTD, profile flow-source exclusivity, original cash dates/amounts, missing early NAV, aggregate anchor guard, privacy and read-only inspection.');
+ const histKey='synthetic-history-'.padEnd(43,'h');
+ docs.set(histKey,{found:true,payload:await encrypt(histKey,cursorFixture),updated_at:'2026-11-13T09:00:00.000Z'});
+ const histPage=await makePage('new',{mobile:true,initialState:cursorFixture,syncKey:histKey});
+ const histAccounting=await accounting(histPage),profilesBefore=await histPage.evaluate(()=>JSON.stringify(state.accounts.map(a=>a.performanceProfiles)));
+ const historyPack=await histPage.evaluate(()=>({format:'portfolio-performance-history',version:1,portfolios:state.accounts.map(a=>{
+  const p=a.performanceProfiles[2026],points=[];
+  for(let time=Date.parse('2026-01-01');time<=Date.parse('2026-11-12');time+=86400000){
+   const date=new Date(time).toISOString().slice(0,10),flows=PortfolioYtdAnchor.flowRecords(a.id,'2026-01-01',date).rows.reduce((sum,f)=>sum+f.amount,0);
+   points.push({date,nav:p.openingNav+flows+(time-Date.parse('2026-01-01'))/86400000*.01,quality:date==='2026-07-31'?'statement':'estimated',source:'Synthetic source'});
+  }
+  return {accountId:a.id,year:'2026',history:{version:1,enabled:true,currency:'USD',from:'2026-01-01',through:'2026-11-12',historicalReturnMethod:'modified-dietz',basis:PortfolioPerformanceHistory.basis(p),ledgerBasis:PortfolioPerformanceHistory.ledgerBasis(state,a.id,'2026-11-12'),points}};
+ })}));
+ await histPage.locator('#cloudSyncBtn').click();await histPage.locator('#importPerformanceHistoryBtn').click();
+ const wrong=structuredClone(historyPack);wrong.portfolios[0].history.basis.openingNav=999;
+ await histPage.locator('#historyImportFile').setInputFiles({name:'wrong-basis.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(wrong))});
+ assert.equal(await histPage.locator('#historyImportApply').isDisabled(),true);assert.match(await histPage.locator('#historyImportPreview').textContent(),/differ/);
+ await histPage.locator('#historyImportFile').setInputFiles({name:'source-history.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(historyPack))});
+ assert.equal(await histPage.locator('#historyImportApply').isEnabled(),true);
+ await histPage.locator('#historyImportApply').click();await histPage.locator('#closeSyncModalBtn').click();
+ await histPage.waitForFunction(()=>Number(document.querySelector('#overallReturnChart svg')?.getAttribute('aria-valuemax'))>300);await histPage.locator('#overallReturnChart svg').press('Home');
+ assert.match(await histPage.locator('#overallReturnChart .chart-inspector-date').textContent(),/2026-01-01/,'import did not extend overall NAV to January');
+ assert.equal(await histPage.locator('#overallReturnChart .chart-inspector-values>div:last-child>strong').textContent(),'+0.00%','early aggregate still blocked by later broker anchor');
+ assert.equal(await histPage.locator('#overallReturnChart .chart-flow-marker').count(),4,'early funding dates disappeared');
+ await histPage.locator('.overall-return-tab[data-mode="performance"]').click();await histPage.locator('#overallReturnChart svg').waitFor();
+ await histPage.locator('#overallReturnChart svg').press('End');
+ assert.equal(await histPage.locator('#overallReturnHero').textContent(),await histPage.locator('#homeSummaryPulse .summary-ytd-link>strong').textContent(),'YTD curve endpoint changed the configured group calculation');
+ await histPage.evaluate(()=>openPortfolio('one'));await histPage.locator('#portfolioHistoryPanel [data-period="YTD"]').click();await histPage.locator('#historyChart svg').waitFor();
+ await histPage.locator('#historyChart svg').press('Home');assert.match(await histPage.locator('#historyChart .chart-inspector-date').textContent(),/2026-01-01/);
+ assert.match(await histPage.locator('#historyChart .chart-inspector-note').textContent(),/Reconstructed NAV estimate.*Synthetic source/);
+ await histPage.locator('#historyChart .chart-cash-flows>summary').click();await histPage.locator('#historyChart .chart-flow-row[data-flow-date="2026-05-01"]').click();
+ assert.notEqual(await histPage.locator('#historyChart .chart-inspector-values>div:first-child>strong').textContent(),'—','earlier deposit has no reconstructed NAV');
+ await histPage.locator('[data-tab="performance"]').click();await histPage.locator('#benchmarkChart svg').waitFor();await histPage.locator('#benchmarkChart svg').press('Home');
+ assert.match(await histPage.locator('#benchmarkChart .chart-inspector-date').textContent(),/2026-01-01/);
+ assert.ok(await histPage.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'imported history mobile overflow');
+ await histPage.screenshot({path:path.join(output,'reconstructed-ytd-mobile.png'),fullPage:true});
+ assert.equal(await accounting(histPage),histAccounting,'history import changed cash, holdings, cost or NAV');
+ assert.equal(await histPage.evaluate(()=>JSON.stringify(state.accounts.map(a=>a.performanceProfiles))),profilesBefore,'history import changed current YTD settings');
+ await histPage.evaluate(()=>goHome());await histPage.locator('#cloudSyncBtn').click();await histPage.locator('#syncNowBtn').click();await histPage.waitForTimeout(500);
+ const historyRemote=await decrypt(histKey,docs.get(histKey).payload);
+ assert.equal(historyRemote.accounts[0].performanceHistories[2026].points.length,316,'encrypted sync stripped history');
+ const documentBeforeExport=JSON.stringify(docs.get(histKey)),localBeforeExport=await allState(histPage),cloudDownloadWait=histPage.waitForEvent('download');
+ await histPage.locator('#exportCloudBackupBtn').click();const cloudExport=await cloudDownloadWait;
+ const cloudExportPath=path.join(output,'cloud-history-synthetic.json');await cloudExport.saveAs(cloudExportPath);
+ const cloudExportData=JSON.parse(await fs.readFile(cloudExportPath,'utf8'));
+ assert.deepEqual(cloudExportData.state,historyRemote,'cloud export used the wrong version');
+ assert.equal(await allState(histPage),localBeforeExport,'cloud export changed local state');assert.equal(JSON.stringify(docs.get(histKey)),documentBeforeExport,'read-only export wrote the cloud document');
+ assert.equal(JSON.stringify(docs.get(keyB)),untouchedB,'private history leaked to another user');
+ console.log('PASS: reviewed private history import, wrong-basis rejection, Jan1 NAV/YTD curves, funding markers, prior-anchor estimate, source labels, current NAV/YTD equality, accounting preservation, encrypted cloud isolation and read-only cloud export.');
  assert.deepEqual(errors,[],'browser runtime errors');
  console.log('PASS: no browser runtime errors.');
 }catch(error){

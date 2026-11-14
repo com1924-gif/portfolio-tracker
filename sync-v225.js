@@ -328,6 +328,20 @@
     finally{busy=false;}
   }
 
+  // Read-only export for comparing conflicts. Never applies or uploads either version.
+  window.exportCurrentCloudBackup=async function(){
+    const key=getSyncKey();if(!key||busy)return;busy=true;
+    try{
+      const remote=await api(key,'GET','doc');if(!remote.found)throw new Error('Cloud copy not found.');
+      const cloud=await decryptState(key,remote.payload);
+      const payload={format:'portfolio-tracker-backup',version:1,exportedAt:new Date().toISOString(),cloudUpdatedAt:remote.updated_at,state:cloud};
+      const url=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:'application/json'})),link=document.createElement('a');
+      link.href=url;link.download='portfolio-tracker-cloud-'+new Date().toISOString().replace(/[:.]/g,'-')+'.json';document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+      toast('Cloud copy exported. Neither version was changed.');
+    }catch(err){toast('Could not export the cloud copy.',true);}
+    finally{busy=false;}
+  };
+
   async function restoreBackup(backupId){
     const key=getSyncKey();if(!key||busy)return;
     if(!confirm('Restore this cloud backup? The current cloud version will first be saved as another backup.'))return;
@@ -473,12 +487,16 @@
       tools.innerHTML=`
         <div class="sync-health-divider"></div>
         <button id="exportJsonBackupBtn" type="button" class="ghost-btn full">Export JSON Backup</button>
+        <button id="exportCloudBackupBtn" type="button" class="ghost-btn full">Export Current Cloud Copy</button>
+        <button id="importPerformanceHistoryBtn" type="button" class="ghost-btn full">Import Historical NAV</button>
         <button id="restoreJsonBackupBtn" type="button" class="ghost-btn full">Restore JSON Backup</button>
         <input id="restoreJsonBackupInput" type="file" accept="application/json,.json" class="hidden" />
         <button id="restoreLocalSafetyBtn" type="button" class="ghost-btn full hidden">Restore Local Safety Backup</button>
         <div class="sync-health-warning">JSON exports are plaintext and contain your portfolio data. Keep backup files private. Restoring a local backup will become a local change and will sync normally if Cloud Sync is connected.</div>`;
       if(showBackups)actions.insertBefore(tools,showBackups);else actions.appendChild(tools);
       document.getElementById('exportJsonBackupBtn').addEventListener('click',exportJsonBackup);
+      document.getElementById('exportCloudBackupBtn').addEventListener('click',()=>window.exportCurrentCloudBackup?.());
+      document.getElementById('importPerformanceHistoryBtn').addEventListener('click',()=>window.PortfolioPerformanceHistory?.openImport());
       document.getElementById('restoreJsonBackupBtn').addEventListener('click',()=>document.getElementById('restoreJsonBackupInput')?.click());
       document.getElementById('restoreJsonBackupInput').addEventListener('change',restoreJsonBackupFile);
       document.getElementById('restoreLocalSafetyBtn').addEventListener('click',restoreLocalSafetyBackup);
