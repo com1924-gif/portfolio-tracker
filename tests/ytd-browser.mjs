@@ -316,8 +316,11 @@ try{
  await session.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:box.x+box.width*.02,y:box.y+box.height*.5}]});
  await session.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
  assert.match(await cursorPage.locator('#historyChart .chart-inspector-date').textContent(),/2026-08-13/,'touch drag did not select an earlier recorded date');
- await cursor.press('End');await cursorPage.locator('#historyChart .chart-cash-flows>summary').click();
+ await cursor.press('End');
+ const readoutPosition=await cursorPage.locator('#historyChart .chart-inspector-readout').boundingBox();
+ assert.ok(readoutPosition.y>=0&&readoutPosition.y+readoutPosition.height<=844,'touch selection readout is outside the viewport');
  assert.ok(await cursorPage.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'mobile cursor overflow');
+ await cursorPage.evaluate(()=>window.scrollTo({top:0,behavior:'instant'}));
  await cursorPage.screenshot({path:path.join(output,'chart-cursor-mobile.png'),fullPage:true});
  await cursorPage.evaluate(()=>goHome());await cursorPage.locator('.overall-return-tab[data-mode="value"]').click();await cursorPage.locator('#overallReturnChart svg').waitFor();
  const homeCursor=cursorPage.locator('#overallReturnChart svg');await homeCursor.press('End');
