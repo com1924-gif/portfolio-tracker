@@ -271,6 +271,7 @@ try{
  assert.equal(await overviewMobile.locator('#portfolioNetAssets').textContent(),await overviewMobile.evaluate(()=>money(summaryFor('one').net)));
  assert.match(await overviewMobile.locator('#historyLatest').textContent(),/NAV change · includes funding/,'asset change presented as investment return');
  assert.match(await overviewMobile.locator('#historyCoverage').textContent(),/Available history from 2026-08-13/,'summary hid missing opening history');
+ assert.match(await overviewMobile.locator('#portfolioDonutText').textContent(),/×Exposure/,'allocation leverage was shown as an unlabelled percentage');
  assert.equal(await overviewMobile.locator('#portfolioSummaryPulse .summary-ytd-link strong').textContent(),await overviewMobile.evaluate(()=>pct(PortfolioYtdAnchor.resultFor('one').returnPct)),'summary YTD differs from configured method');
  assert.ok(await overviewMobile.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'mobile portfolio summary overflow');
  await overviewMobile.evaluate(()=>window.scrollTo({top:0,behavior:'instant'}));
