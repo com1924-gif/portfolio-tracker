@@ -56,7 +56,7 @@
     if(!amount||!btn)return;
 
     const valueHero=document.getElementById('overallReturnPanel')?.dataset.mode==='value'?document.getElementById('overallReturnHero'):null;
-    for(const el of [amount,valueHero].filter(Boolean)){
+    for(const el of [amount,valueHero,...document.querySelectorAll('#overallReturnChart [data-inspector-nav],#overallReturnChart [data-inspector-nav-label]')].filter(Boolean)){
       if(el.textContent!=='******')el.dataset.visibleValue=el.textContent;
       if(hidden)el.textContent='******';
       else if(el.textContent==='******'&&el.dataset.visibleValue)el.textContent=el.dataset.visibleValue;

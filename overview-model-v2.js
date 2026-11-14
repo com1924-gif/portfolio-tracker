@@ -10,8 +10,8 @@
   }
   function currentEndpoint(series,asOf,current){
     const points=new Map();
-    for(const p of series||[])if(validDate(p?.date)&&p.date<=asOf&&Number.isFinite(Number(p.value)))points.set(p.date,{date:p.date,value:Number(p.value)});
-    if(Number.isFinite(Number(current)))points.set(asOf,{date:asOf,value:Number(current)});
+    for(const p of series||[])if(validDate(p?.date)&&p.date<=asOf&&Number.isFinite(Number(p.value)))points.set(p.date,{...p,date:p.date,value:Number(p.value)});
+    if(Number.isFinite(Number(current)))points.set(asOf,{...points.get(asOf),date:asOf,value:Number(current)});
     return [...points.values()].sort((a,b)=>a.date.localeCompare(b.date));
   }
   function performance(values,flows){

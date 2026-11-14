@@ -222,6 +222,7 @@
     const out=[];
     for(const date of [...dates].filter(d=>d&&d>=start&&d<=today).sort()){
       let total=0;
+      const accountValues={};
       for(const {account,lookups} of fetched){
         const assets=state.assets.filter(a=>a.accountId===account.id);
         let invested=0;
@@ -240,9 +241,10 @@
         }
         const cashBal=cashBalancesAt(account.id,date);
         const cash=Object.entries(cashBal).reduce((s,[c,v])=>s+convert(v,c),0);
-        total+=invested+cash;
+        accountValues[account.id]=date===today?summaryFor(account.id).net:invested+cash;
+        total+=accountValues[account.id];
       }
-      out.push({date,value:total});
+      out.push({date,value:total,accountValues});
     }
     return model.currentEndpoint(out,today,summaryFor().net);
   }
@@ -275,7 +277,7 @@
     return Number.isNaN(d.getTime())?s:new Intl.DateTimeFormat('en-HK',{day:'numeric',month:'short',year:period==='ALL'?'2-digit':undefined}).format(d);
   }
 
-  function drawChart(series,isPerformance){
+  function drawChart(series,isPerformance,navSeries=series){
     const el=document.getElementById('overallReturnChart');
     if(!el)return;
     if(!series||series.length<2){
@@ -319,6 +321,7 @@
       <text x="${left}" y="${h-5}" fill="#8e8e99" font-size="11">${shortDate(series[0].date)}</text>
       <text x="${w-right}" y="${h-5}" fill="#8e8e99" text-anchor="end" font-size="11">${shortDate(series[series.length-1].date)}</text>
     </svg>`;
+    window.PortfolioChartInspector?.attach({element:el,series,navSeries,kind:isPerformance?'return':'nav',currency:displayCurrency,accountIds:activeAccounts().map(a=>a.id),start:startForPeriod(period),end:dateString(new Date()),x,y,width:w,height:h,left,right:w-right,top,bottom:h-bottom});
   }
 
   async function renderOverallReturn({force=false}={}){
@@ -327,6 +330,7 @@
     if(currentPortfolioId!==null)return;
     const seq=++renderSeq;
     const chart=document.getElementById('overallReturnChart');
+    window.PortfolioChartInspector?.clear(chart);
     const hero=document.getElementById('overallReturnHero');
     const sub=document.getElementById('overallReturnSub');
     const label=document.getElementById('overallReturnLabel');
@@ -364,7 +368,7 @@
           sub.textContent=end==null?'Insufficient tracked history':`Total return · ${periodCaption()}`;
           sub.className='overall-return-sub';
         }
-        drawChart(perf,true);
+        drawChart(perf,true,values);
       }else{
         const first=values.length?Number(values[0].value):null;
         const end=summaryFor().net;

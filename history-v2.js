@@ -160,12 +160,6 @@ function buildPortfolioHistory(portfolioId,start,pairs,history){
     series.push({date,value:invested+cash});
   }
   const currentSeries=window.PortfolioOverviewModel.currentEndpoint(series,isoDate(new Date()),summaryFor(portfolioId).net);
-  if(currentSeries.length>280){
-    const step=(currentSeries.length-1)/279;
-    const sampled=[];
-    for(let i=0;i<280;i++) sampled.push(currentSeries[Math.round(i*step)]);
-    return [...new Map(sampled.map(p=>[p.date,p])).values()];
-  }
   return currentSeries;
 }
 
@@ -205,6 +199,7 @@ function drawHistoryChart(series){
     <polyline points="${pts}" fill="none" stroke="${stroke}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
     <circle cx="${x(series.at(-1).date)}" cy="${y(endVal)}" r="4" fill="${stroke}"/>
   </svg>`;
+  window.PortfolioChartInspector?.attach({element:el,series,kind:'nav',currency:displayCurrency,portfolioId:currentPortfolioId,accountIds:[currentPortfolioId],start:periodStart(currentPortfolioId,historyPeriod),end:isoDate(new Date()),x,y,width:w,height:h,left:padX,right:w-padX,top:padY,bottom:h-padY});
   if(latest) latest.innerHTML=`<strong>${money(endVal)}</strong><span>${signedMoney(chg)} (${pct(chgPct)})<small>NAV change · includes funding</small></span>`;
   if(range) range.innerHTML=`<span>${shortDate(series[0].date)}</span><span>${money(actualMin)} – ${money(actualMax)}</span><span>${shortDate(series[series.length-1].date)}</span>`;
 }
@@ -214,6 +209,7 @@ async function renderPerformanceChart({force=false}={}){
   if(!currentPortfolioId) return;
   const portfolioId=currentPortfolioId,currency=displayCurrency,seq=++historyRenderSequence;
   const el=document.getElementById('historyChart');
+  window.PortfolioChartInspector?.clear(el);
   const note=document.getElementById('historyNote');
   const latest=document.getElementById('historyLatest'),range=document.getElementById('historyRange');
   if(latest)latest.textContent=money(summaryFor(portfolioId).net);
