@@ -316,9 +316,9 @@ try{
  await session.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:box.x+box.width*.02,y:box.y+box.height*.5}]});
  await session.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
  assert.match(await cursorPage.locator('#historyChart .chart-inspector-date').textContent(),/2026-08-13/,'touch drag did not select an earlier recorded date');
+ assert.equal(await cursorPage.locator('#historyChart .chart-inspector-tooltip').isVisible(),true,'touch values are not visible on the chart');
+ assert.match(await cursorPage.locator('#historyChart .chart-inspector-tooltip').textContent(),/NAV.*YTD/,'floating date values are missing');
  await cursor.press('End');
- const readoutPosition=await cursorPage.locator('#historyChart .chart-inspector-readout').boundingBox();
- assert.ok(readoutPosition.y>=0&&readoutPosition.y+readoutPosition.height<=844,'touch selection readout is outside the viewport');
  assert.ok(await cursorPage.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'mobile cursor overflow');
  await cursorPage.evaluate(()=>window.scrollTo({top:0,behavior:'instant'}));
  await cursorPage.screenshot({path:path.join(output,'chart-cursor-mobile.png'),fullPage:true});
@@ -326,6 +326,7 @@ try{
  const homeCursor=cursorPage.locator('#overallReturnChart svg');await homeCursor.press('End');
  assert.equal(await cursorPage.locator('#overallReturnChart [data-inspector-nav]').textContent(),await cursorPage.locator('#homeNetAssets').textContent());
  await cursorPage.locator('#homeNetAssetPrivacyBtn').click();assert.equal(await cursorPage.locator('#overallReturnChart [data-inspector-nav]').textContent(),'******','new readout leaked masked NAV');
+ assert.equal(await cursorPage.locator('#overallReturnChart [data-inspector-nav-label]').textContent(),'******','floating tooltip leaked masked NAV');
  await cursorPage.locator('#homeNetAssetPrivacyBtn').click();
  await homeCursor.press('Home');assert.equal(await cursorPage.locator('#overallReturnChart .chart-inspector-values>div:last-child>strong').textContent(),'—','backcast broker-linked aggregate before anchor');
  await homeCursor.press('End');assert.equal(await cursorPage.locator('#overallReturnChart .chart-inspector-values>div:last-child>strong').textContent(),await cursorPage.locator('#homeSummaryPulse .summary-ytd-link>strong').textContent(),'aggregate cursor differs from configured overview YTD');
