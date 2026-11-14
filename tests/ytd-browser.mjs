@@ -139,6 +139,7 @@ try{
  assert.equal(await linked.evaluate(()=>JSON.stringify(state.transactions)),linkedTxBefore,'transfer matching changed transactions');
  assert.equal(await linked.evaluate(()=>JSON.stringify(state.accounts[1])),otherLinkedBefore,'linked settings changed another portfolio');
  await linked.evaluate(()=>goHome());await linked.locator('.overall-return-tab[data-mode="performance"]').click();await linked.locator('.overall-return-period[data-period="YTD"]').click();
+ await linked.locator('#overallReturnPanel .overall-return-body > details > summary').click();
  assert.match(await linked.locator('#overallReturnNote').innerText(),/percentages are not averaged/);
  console.log('PASS: automatic continuation, no NAV alignment gain, later deposit, sale neutrality, market gain, currency invariance and transfer notes without transaction edits.');
 

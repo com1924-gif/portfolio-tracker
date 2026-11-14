@@ -186,6 +186,7 @@ function drawHistoryChart(series){
     return;
   }
   const values=series.map(p=>Number(p.value)||0);
+  const actualMin=Math.min(...values),actualMax=Math.max(...values);
   let min=Math.min(...values),max=Math.max(...values);
   if(max===min){max+=1;min-=1;}
   const w=700,h=230,padX=12,padY=20;
@@ -205,7 +206,7 @@ function drawHistoryChart(series){
     <circle cx="${x(series.at(-1).date)}" cy="${y(endVal)}" r="4" fill="${stroke}"/>
   </svg>`;
   if(latest) latest.innerHTML=`<strong>${money(endVal)}</strong><span>${signedMoney(chg)} (${pct(chgPct)})<small>NAV change · includes funding</small></span>`;
-  if(range) range.innerHTML=`<span>${shortDate(series[0].date)}</span><span>${money(min)} – ${money(max)}</span><span>${shortDate(series[series.length-1].date)}</span>`;
+  if(range) range.innerHTML=`<span>${shortDate(series[0].date)}</span><span>${money(actualMin)} – ${money(actualMax)}</span><span>${shortDate(series[series.length-1].date)}</span>`;
 }
 
 async function renderPerformanceChart({force=false}={}){
