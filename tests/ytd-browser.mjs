@@ -264,7 +264,8 @@ try{
  await overviewMobile.locator('#overallReturnPanel').screenshot({path:path.join(output,'overview-mobile-performance.png')});
  console.log('PASS: history outage retains NAV, portfolio navigation rejects stale results, mobile overview/performance layout.');
  await overviewMobile.locator('.overall-return-tab[data-mode="value"]').click();
- await overviewMobile.locator('#homeView>.summary-card').screenshot({path:path.join(output,'summary-mobile-home.png')});
+ await overviewMobile.evaluate(()=>window.scrollTo({top:0,behavior:'instant'}));
+ await overviewMobile.screenshot({path:path.join(output,'summary-mobile-home.png'),fullPage:true});
  const summaryBefore=await overviewFinancial(overviewMobile);
  await overviewMobile.evaluate(()=>openPortfolio('one'));await overviewMobile.waitForTimeout(600);
  assert.equal(await overviewMobile.locator('#portfolioNetAssets').textContent(),await overviewMobile.evaluate(()=>money(summaryFor('one').net)));
@@ -272,14 +273,16 @@ try{
  assert.match(await overviewMobile.locator('#historyCoverage').textContent(),/Available history from 2026-08-13/,'summary hid missing opening history');
  assert.equal(await overviewMobile.locator('#portfolioSummaryPulse .summary-ytd-link strong').textContent(),await overviewMobile.evaluate(()=>pct(PortfolioYtdAnchor.resultFor('one').returnPct)),'summary YTD differs from configured method');
  assert.ok(await overviewMobile.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'mobile portfolio summary overflow');
- await overviewMobile.locator('#tab-overview').screenshot({path:path.join(output,'summary-mobile-portfolio.png')});
+ await overviewMobile.evaluate(()=>window.scrollTo({top:0,behavior:'instant'}));
+ await overviewMobile.screenshot({path:path.join(output,'summary-mobile-portfolio.png'),fullPage:true});
  await overviewMobile.locator('#portfolioSummaryPulse .summary-ytd-link').click();await overviewMobile.waitForTimeout(300);
  assert.equal(await overviewMobile.locator('#benchmarkPeriods .active').textContent(),'YTD');
  await overviewMobile.locator('#benchmarkPeriods [data-period="1Y"]').click();await overviewMobile.waitForTimeout(1800);
  assert.match(await overviewMobile.locator('#benchmarkChart').textContent(),/Opening trades are incomplete/,'live refresh replaced missing-history guard');
  assert.equal(await overviewFinancial(overviewMobile),summaryBefore,'summary redesign changed financial state');
  await overviewMobile.locator('#benchmarkPeriods [data-period="YTD"]').click();await overviewMobile.waitForTimeout(300);
- await overviewMobile.locator('#tab-performance').screenshot({path:path.join(output,'summary-mobile-ytd.png')});
+ await overviewMobile.evaluate(()=>window.scrollTo({top:0,behavior:'instant'}));
+ await overviewMobile.screenshot({path:path.join(output,'summary-mobile-ytd.png'),fullPage:true});
  console.log('PASS: Futu-style summary, canonical portfolio NAV/YTD, explicit funding and history coverage, benchmark guard survives live refresh, no financial state changes.');
  assert.deepEqual(errors,[],'browser runtime errors');
  console.log('PASS: no browser runtime errors.');

@@ -31,6 +31,9 @@
     .portfolio-header-actions{display:flex;align-items:center;gap:10px}.portfolio-header-actions .icon-text-btn{font-size:11px;padding:6px 2px;font-weight:550}#portfolioHeader .back-btn{font-size:24px;width:30px}.portfolio-summary{margin-top:0}
     .history-head h2{font-size:15px}.history-head .muted{font-size:10px;margin-top:5px}.history-latest strong{font-size:18px;font-weight:550}.history-latest span{font-size:11px;color:var(--muted);font-weight:400}.history-latest small{display:block;font-size:9px;color:var(--muted);margin-top:4px}.history-chart{background:transparent;border-radius:0;min-height:220px}.history-chart svg{min-height:200px}.history-grid-line{stroke:#28323e;stroke-dasharray:3 5}.history-range{font-size:10px;line-height:1.5}.history-coverage{font-size:10px;line-height:1.5;color:var(--accent);margin:-6px 0 12px}
     .history-periods{gap:4px;margin:15px 0}.history-period{background:transparent;font-size:11px;font-weight:550;padding:8px 3px}.ytd-result-head{display:grid;grid-template-columns:1fr 1fr;gap:20px;padding:18px 0}.ytd-result-head>div{min-width:0}.ytd-result-head>div:last-child{text-align:right}.ytd-result-head span{display:block;color:var(--muted);font-size:11px;margin-bottom:8px}.ytd-result-head strong{font-size:22px;font-weight:550;letter-spacing:-.025em;overflow-wrap:anywhere}.ytd-result-head>div:last-child strong{font-size:14px;color:#cfdae5}.ytd-period-note{font-size:10px;color:var(--muted);line-height:1.6;margin-bottom:18px}.ytd-calculation{padding-top:14px}.ytd-snapshot dl{margin:20px 0;gap:14px}.ytd-snapshot dt,.ytd-snapshot dd{font-size:12px}.benchmark-chart{background:transparent!important}.benchmark-legend-item{background:#10171f!important;border-color:#28323e!important}.performance-metric{background:#121a23;border-color:#293440;border-radius:12px}.performance-metric strong{font-size:16px;font-weight:550}
+    .overall-return-chart:has(.ytd-snapshot),.benchmark-chart:has(.ytd-snapshot){min-height:0;display:block;margin-top:16px}
+    .benchmark-periods{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:5px}.benchmark-period{font-size:11px;padding:9px 2px;border-radius:7px;font-weight:550;background:transparent}.benchmark-period.active{background:rgba(255,160,74,.12);color:var(--accent);border-color:#81572e}
+    #portfolioView .sticky-section-head{top:calc(var(--summary-header-height,80px) + 50px)}
     :is(button,summary,select):focus-visible{outline:2px solid var(--accent);outline-offset:4px}
     @media(max-width:560px){
       main{padding:0 12px}.app-header{padding:16px 14px 12px}#homeHeader{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:3px 10px}#homeHeader>div:first-child{grid-column:1/-1}#homeHeader>.icon-text-btn{font-size:11px;padding:7px 2px}
@@ -81,6 +84,8 @@
   function layout(){
     const home=document.getElementById('homeView'),card=home?.querySelector('.summary-card'),chart=document.getElementById('overallReturnPanel');
     if(card&&chart&&card.nextElementSibling!==chart)card.after(chart);
+    const metrics=document.getElementById('performanceMetrics'),benchmark=document.getElementById('benchmarkChart')?.closest('.panel');
+    if(metrics&&benchmark&&metrics.previousElementSibling!==benchmark)metrics.before(benchmark);
     disclosure(document.getElementById('overallReturnNote'),'About this calculation');
     disclosure(document.getElementById('historyNote'),'Chart details');
     disclosure(document.getElementById('benchmarkNote'),'About this calculation');
