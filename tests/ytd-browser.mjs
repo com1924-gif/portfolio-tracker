@@ -348,8 +348,10 @@ try{
  await histPage.locator('#cloudSyncBtn').click();await histPage.locator('#importPerformanceHistoryBtn').click();
  const wrong=structuredClone(historyPack);wrong.portfolios[0].history.basis.openingNav=999;
  await histPage.locator('#historyImportFile').setInputFiles({name:'wrong-basis.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(wrong))});
+ await histPage.waitForFunction(()=>document.getElementById('historyImportPreview').textContent.includes('differ'));
  assert.equal(await histPage.locator('#historyImportApply').isDisabled(),true);assert.match(await histPage.locator('#historyImportPreview').textContent(),/differ/);
  await histPage.locator('#historyImportFile').setInputFiles({name:'source-history.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(historyPack))});
+ await histPage.waitForFunction(()=>!document.getElementById('historyImportApply').disabled);
  assert.equal(await histPage.locator('#historyImportApply').isEnabled(),true);
  await histPage.locator('#historyImportApply').click();await histPage.locator('#closeSyncModalBtn').click();
  await histPage.waitForFunction(()=>Number(document.querySelector('#overallReturnChart svg')?.getAttribute('aria-valuemax'))>300);await histPage.locator('#overallReturnChart svg').press('Home');
