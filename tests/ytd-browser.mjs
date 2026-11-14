@@ -61,7 +61,7 @@ async function makePage(variant,{syncKey=null,mobile=false,initialState=fixture,
   }
   await route.fulfill({json:{quotes:{AAA:{price:12,previousClose:11,name:'Example A',currency:'USD'},BBB:{price:6,previousClose:5,name:'Example B',currency:'USD'},VOO:{price:110,previousClose:109},QQQ:{price:220,previousClose:218}},history,fx:{HKD:1,USD:7.8,KRW:0.0056,EUR:8.5},updatedAt:fixed}});
  });
- const page=await ctx.newPage();page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());
+ const page=await ctx.newPage();page.on('pageerror',e=>{errors.push(e.message);console.error('Browser runtime error:',e.message);});page.on('dialog',d=>d.accept());
  await page.goto(origin+'/'+variant+'/index.html');await page.waitForSelector('body.app-ready');await page.waitForTimeout(1200);return page;
 }
 const accounting=page=>page.evaluate(()=>JSON.stringify({transactions:state.transactions,fx:state.fx,holdings:holdingsFor(),positions:positionsFor(),cash:cashBalancesFor(),summary:summaryFor()}));
@@ -265,6 +265,7 @@ try{
  assert.deepEqual(errors,[],'browser runtime errors');
  console.log('PASS: no browser runtime errors.');
 }catch(error){
+ console.error('Captured runtime errors:',JSON.stringify(errors));
  for(let i=0;i<contexts.length;i++){const p=contexts[i].pages()[0];if(p){await p.screenshot({path:path.join(output,'failure-'+i+'.png'),fullPage:true}).catch(()=>{});await fs.writeFile(path.join(output,'failure-'+i+'.txt'),await p.locator('body').innerText().catch(()=>''));}}
  throw error;
 }finally{for(const c of contexts)await c.close();await browser.close();await new Promise(resolve=>server.close(resolve));}
