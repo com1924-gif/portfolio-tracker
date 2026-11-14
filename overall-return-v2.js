@@ -43,6 +43,12 @@
     .overview-account .overview-result{text-align:right;font-weight:700;font-size:13px}
     .overview-account small{display:block;font-weight:400;color:var(--muted);margin-top:4px}
     @media(max-width:520px){
+      #homeHeader{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:4px 8px;padding:14px}
+      #homeHeader>div:first-child{grid-column:1/-1;min-width:0}
+      #homeHeader>.icon-text-btn{min-width:0;font-size:13px;padding:8px 6px}
+      #homeNetAssets{font-size:clamp(23px,7.5vw,32px);overflow-wrap:anywhere}
+      .summary-topline>div{min-width:0}
+      .summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
       .overall-return-body{padding:15px 12px 13px}
       .overall-return-hero{font-size:28px}
       .overall-return-period{padding:8px 8px}

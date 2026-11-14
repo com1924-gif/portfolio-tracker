@@ -2,12 +2,16 @@ name: YTD regression tests
 
 on:
   push:
-    branches: [main, feature/optional-ytd-anchor, feature/automatic-ytd-anchor, feature/md-automatic-flows, feature/overview-accuracy]
+    branches: [main]
   pull_request:
     branches: [main]
 
 permissions:
   contents: read
+
+concurrency:
+  group: ytd-checks-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
