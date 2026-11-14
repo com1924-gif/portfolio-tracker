@@ -9,6 +9,21 @@ const profile=(overrides={})=>({version:1,enabled:true,method:'modified-dietz',o
   flowsCompleteThrough:'2024-04-09',externalFlows:[],...overrides});
 const approx=(a,b)=>assert.ok(Math.abs(a-b)<1e-8,`${a} != ${b}`);
 
+test('historical YTD uses the selected NAV and excludes later cash flows',()=>{
+ const p=profile({externalFlows:[{id:'later',date:'2024-02-19',amount:50}]});
+ const before=JSON.stringify(p),r=api.calculateHistorical(p,2024,'2024-01-31',110);
+ assert.equal(r.ok,true);approx(r.endNav,110);approx(r.profit,10);approx(r.returnPct,10);assert.equal(JSON.stringify(p),before);
+});
+test('fixed NAV snapshots cannot be presented as YTD for another historical date',()=>{
+ const p=profile({navSource:'snapshot',navSnapshot:{date:'2024-03-01',amount:150}});
+ assert.equal(api.calculateHistorical(p,2024,'2024-02-01',999).ok,false);
+ const r=api.calculateHistorical(p,2024,'2024-03-01',999);assert.equal(r.ok,true);approx(r.endNav,150);approx(r.profit,50);
+});
+test('broker-linked historical YTD cannot be backcast before its return anchor',()=>{
+ const p=linkedProfile();assert.equal(api.calculateHistorical(p,2024,'2024-02-18',999,source()).ok,false);
+ const r=api.calculateHistorical(p,2024,p.anchor.date,999,source());assert.equal(r.ok,true);approx(r.returnPct,p.anchor.returnPct);
+});
+
 test('no flows measures NAV change and returns 10 percent',()=>{
   const r=api.calculate(profile(),2024,'2024-04-09',110);assert.equal(r.ok,true);approx(r.profit,10);approx(r.returnPct,10);
 });

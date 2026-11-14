@@ -178,7 +178,14 @@
     const endNav=records.reduce((s,r)=>s+number(r.endNav),0);
     return {...calculate(profile,year,asOf,endNav),internalTransferPairs:pairs.size,linkedCount,automaticCount,rawAppNav,navAdjustment:endNav-rawAppNav};
   }
-  const api={validate,calculate,aggregate,linkedInputs,automaticInputs};
+  function calculateHistorical(profile,year,asOf,appNav,source){
+    if(profile?.navSource==='snapshot'){
+      if(asOf!==profile.navSnapshot?.date)return {ok:false,errors:['YTD uses a fixed NAV snapshot on '+(profile.navSnapshot?.date||'another date')+'.']};
+      return calculate(profile,year,asOf,profile.navSnapshot.amount,source);
+    }
+    return calculate(profile,year,asOf,appNav,source);
+  }
+  const api={validate,calculate,aggregate,linkedInputs,automaticInputs,calculateHistorical};
   root.PortfolioYtdAnchor=api;
   if(typeof document==='undefined')return;
 
@@ -218,6 +225,47 @@
     return {asOf,nav:currentNav(id,p.currency)};
   }
   api.profile=enabled;api.resultFor=resultFor;
+
+  function historicalNav(value,from,to){
+    const rates=flowSource('').rates,a=number(rates[from]),b=number(rates[to]);
+    return Number.isFinite(number(value))&&a>0&&b>0?number(value)*a/b:NaN;
+  }
+  function resultAt(id,asOf,nav,currency){
+    const p=enabled(id,asOf.slice(0,4));if(!p)return null;
+    if(!Number.isFinite(day(asOf))||asOf>today())return {ok:false,errors:['Historical date is unavailable.']};
+    return {...calculateHistorical(p,asOf.slice(0,4),asOf,historicalNav(nav,currency,p.currency),flowSource(id)),navSource:p.navSource||'app'};
+  }
+  function overallAt(asOf,values,currency){
+    if(!Number.isFinite(day(asOf))||asOf>today())return {ok:false,errors:['Historical date is unavailable.']};
+    const active=activeAccounts(),selected=active.filter(a=>enabled(a.id,asOf.slice(0,4)));if(!selected.length)return null;
+    const records=[];
+    for(const a of selected){
+      const p=enabled(a.id,asOf.slice(0,4)),nav=historicalNav(values?.[a.id],currency,p.currency),r=calculateHistorical(p,asOf.slice(0,4),asOf,nav,flowSource(a.id));
+      if(!r.ok)return {ok:false,errors:[a.name+': '+r.errors.join(' ')],selectedCount:selected.length,activeCount:active.length};
+      records.push({id:a.id,profile:p,endNav:p.navSource==='snapshot'?p.navSnapshot.amount:nav,source:flowSource(a.id)});
+    }
+    return {...aggregate(records,asOf.slice(0,4),asOf),selectedCount:selected.length,activeCount:active.length};
+  }
+  function flowRecords(id,start,end){
+    const s=getState(),a=account(id),rows=[],errors=[];
+    const years=new Set([start.slice(0,4),end.slice(0,4),...Object.keys(a?.performanceProfiles||{}),...s.transactions.filter(t=>t.accountId===id).map(t=>(t.date||'').slice(0,4))]);
+    for(const year of [...years].filter(y=>/^\d{4}$/.test(y)&&y>=start.slice(0,4)&&y<=end.slice(0,4)).sort()){
+      const p=enabled(id,year);
+      if(p){
+        const cutoff=p.method===LINKED?p.anchor?.date:p.automaticFlowsAfter;
+        const inputs=cutoff!=null?automaticInputs(p,year,end.slice(0,4)===year?end:year+'-12-31',flowSource(id),cutoff):{ok:validate(p,year).length===0,profile:p,errors:validate(p,year)};
+        if(!inputs.ok){errors.push(...inputs.errors);continue;}
+        for(const f of inputs.profile.externalFlows)if(f.date>=start&&f.date<=end)rows.push({...f,id:id+':'+f.id,accountId:id,accountName:a?.name||'Portfolio',currency:p.currency,source:'Performance flow list'});
+      }else{
+        for(const t of s.transactions)if(t.accountId===id&&t.date?.slice(0,4)===year&&t.date>=start&&t.date<=end&&['Deposit','Withdrawal'].includes(t.type)){
+          const amount=number(t.amount);if(!Number.isFinite(amount)||amount<0||!Number.isFinite(day(t.date))){errors.push('A recorded deposit or withdrawal is invalid.');continue;}
+          rows.push({id:id+':transaction:'+t.id,accountId:id,accountName:a?.name||'Portfolio',date:t.date,amount:amount*(t.type==='Deposit'?1:-1),currency:t.currency,source:'Recorded transaction',counterpartyId:t.counterpartyId,transferId:t.transferId});
+        }
+      }
+    }
+    return {rows,errors:[...new Set(errors)]};
+  }
+  api.resultAt=resultAt;api.overallAt=overallAt;api.flowRecords=flowRecords;
 
   const style=document.createElement('style');
   style.textContent=`
