@@ -300,7 +300,7 @@
     const pts=series.map(p=>`${x(p.date).toFixed(1)},${y(p.value).toFixed(1)}`).join(' ');
     const end=Number(series[series.length-1].value)||0;
     const start=Number(series[0].value)||0;
-    const stroke=isPerformance?(end<0?'#ff5d57':'#d9b5e8'):(end-start<0?'#ff5d57':'#70a8ff');
+    const stroke=isPerformance?(end<0?'#f56c75':'#37c997'):'#ff9b45';
     const mid=(max+min)/2;
     const fmt=v=>isPerformance?`${v.toFixed(1)}%`:compactValue(v);
     const area=isPerformance?'':`<defs><linearGradient id="overallValueFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${stroke}" stop-opacity=".20"/><stop offset="100%" stop-color="${stroke}" stop-opacity="0"/></linearGradient></defs><polygon points="${left},${h-bottom} ${pts} ${w-right},${h-bottom}" fill="url(#overallValueFill)"/>`;

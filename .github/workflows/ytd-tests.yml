@@ -32,6 +32,7 @@ jobs:
           node --check overall-return-v2.js
           node --check overview-model-v2.js
           node --check history-v2.js
+          node --check summary-design-v2.js
           node --check privacy-toggle-v2.js
           node --check tests/ytd-browser.mjs
       - name: Calculation, state and encryption tests

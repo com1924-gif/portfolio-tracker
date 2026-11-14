@@ -139,6 +139,7 @@ try{
  assert.equal(await linked.evaluate(()=>JSON.stringify(state.transactions)),linkedTxBefore,'transfer matching changed transactions');
  assert.equal(await linked.evaluate(()=>JSON.stringify(state.accounts[1])),otherLinkedBefore,'linked settings changed another portfolio');
  await linked.evaluate(()=>goHome());await linked.locator('.overall-return-tab[data-mode="performance"]').click();await linked.locator('.overall-return-period[data-period="YTD"]').click();
+ await linked.locator('#overallReturnPanel .overall-return-body > details > summary').click();
  assert.match(await linked.locator('#overallReturnNote').innerText(),/percentages are not averaged/);
  console.log('PASS: automatic continuation, no NAV alignment gain, later deposit, sale neutrality, market gain, currency invariance and transfer notes without transaction edits.');
 
@@ -262,6 +263,28 @@ try{
  assert.ok(await overviewMobile.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'mobile performance overflow');
  await overviewMobile.locator('#overallReturnPanel').screenshot({path:path.join(output,'overview-mobile-performance.png')});
  console.log('PASS: history outage retains NAV, portfolio navigation rejects stale results, mobile overview/performance layout.');
+ await overviewMobile.locator('.overall-return-tab[data-mode="value"]').click();
+ await overviewMobile.evaluate(()=>window.scrollTo({top:0,behavior:'instant'}));
+ await overviewMobile.screenshot({path:path.join(output,'summary-mobile-home.png'),fullPage:true});
+ const summaryBefore=await overviewFinancial(overviewMobile);
+ await overviewMobile.evaluate(()=>openPortfolio('one'));await overviewMobile.waitForTimeout(600);
+ assert.equal(await overviewMobile.locator('#portfolioNetAssets').textContent(),await overviewMobile.evaluate(()=>money(summaryFor('one').net)));
+ assert.match(await overviewMobile.locator('#historyLatest').textContent(),/NAV change · includes funding/,'asset change presented as investment return');
+ assert.match(await overviewMobile.locator('#historyCoverage').textContent(),/Available history from 2026-08-13/,'summary hid missing opening history');
+ assert.match(await overviewMobile.locator('#portfolioDonutText').textContent(),/×Exposure/,'allocation leverage was shown as an unlabelled percentage');
+ assert.equal(await overviewMobile.locator('#portfolioSummaryPulse .summary-ytd-link strong').textContent(),await overviewMobile.evaluate(()=>pct(PortfolioYtdAnchor.resultFor('one').returnPct)),'summary YTD differs from configured method');
+ assert.ok(await overviewMobile.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'mobile portfolio summary overflow');
+ await overviewMobile.evaluate(()=>window.scrollTo({top:0,behavior:'instant'}));
+ await overviewMobile.screenshot({path:path.join(output,'summary-mobile-portfolio.png'),fullPage:true});
+ await overviewMobile.locator('#portfolioSummaryPulse .summary-ytd-link').click();await overviewMobile.waitForTimeout(300);
+ assert.equal(await overviewMobile.locator('#benchmarkPeriods .active').textContent(),'YTD');
+ await overviewMobile.locator('#benchmarkPeriods [data-period="1Y"]').click();await overviewMobile.waitForTimeout(1800);
+ assert.match(await overviewMobile.locator('#benchmarkChart').textContent(),/Opening trades are incomplete/,'live refresh replaced missing-history guard');
+ assert.equal(await overviewFinancial(overviewMobile),summaryBefore,'summary redesign changed financial state');
+ await overviewMobile.locator('#benchmarkPeriods [data-period="YTD"]').click();await overviewMobile.waitForTimeout(300);
+ await overviewMobile.evaluate(()=>window.scrollTo({top:0,behavior:'instant'}));
+ await overviewMobile.screenshot({path:path.join(output,'summary-mobile-ytd.png'),fullPage:true});
+ console.log('PASS: Futu-style summary, canonical portfolio NAV/YTD, explicit funding and history coverage, benchmark guard survives live refresh, no financial state changes.');
  assert.deepEqual(errors,[],'browser runtime errors');
  console.log('PASS: no browser runtime errors.');
 }catch(error){

@@ -6,6 +6,7 @@
   const PERF_API='https://portfolio-tracker-quotes.vercel.app/';
   const PERF_PERIODS=['1M','3M','6M','YTD','1Y','ALL'];
   let performancePeriod='YTD';
+  let benchmarkSequence=0;
   let benchmarkLastFetchedAt=null;
   const benchmarkCache=new Map();
 
@@ -235,7 +236,7 @@
     const x=date=>{const t=new Date(`${date}T00:00:00`).getTime();return padX+(w-padX*2)*((t-minT)/Math.max(1,maxT-minT));};
     const y=v=>padY+(h-padY*2)*(1-(v-minV)/(maxV-minV));
     const zeroY=y(100);
-    const colors=['#d9b5e8','#59c3c3','#f4c95d'];
+    const colors=['#ff9b45','#5ea9f6','#60c8c4'];
     const polylines=lines.map((line,i)=>{
       if(!line.points.length)return '';
       const pts=line.points.map(p=>`${x(p.date).toFixed(1)},${y(p.value).toFixed(1)}`).join(' ');
@@ -281,10 +282,17 @@
   async function renderBenchmark({force=false}={}){
     ensurePerformanceTab();
     if(!currentPortfolioId)return;
-    const portfolioId=currentPortfolioId;
+    const portfolioId=currentPortfolioId,currency=displayCurrency,period=performancePeriod,seq=++benchmarkSequence;
     const chart=document.getElementById('benchmarkChart');
     const note=document.getElementById('benchmarkNote');
     if(window.PortfolioYtdAnchor?.renderPortfolio(portfolioId,performancePeriod,{force}))return;
+    const coverage=portfolioHistoryCoverage(portfolioId,period);
+    if(coverage.missingOpeningHistory){
+      if(chart)chart.innerHTML='<div class="empty">Opening trades are incomplete for this range. Choose YTD for the opening-NAV calculation.</div>';
+      const legend=document.getElementById('benchmarkLegend');if(legend)legend.innerHTML='';
+      if(note)note.textContent=`Recorded history begins ${coverage.from}. A full-period performance curve cannot be reconstructed from missing trades.`;
+      return;
+    }
     if(chart)chart.innerHTML='<div class="history-loading">Loading total-return benchmark…</div>';
     try{
       const start=periodStart(portfolioId,performancePeriod);
@@ -292,7 +300,7 @@
         fetchHistoryForPortfolio(portfolioId,start,{force}),
         fetchBenchmarks(start,{force})
       ]);
-      if(currentPortfolioId!==portfolioId)return;
+      if(seq!==benchmarkSequence||currentPortfolioId!==portfolioId||displayCurrency!==currency||performancePeriod!==period)return;
       if(window.PortfolioYtdAnchor?.renderPortfolio(portfolioId,performancePeriod,{force}))return;
       const netSeries=buildPortfolioHistory(portfolioId,start,pairs,history);
       const rawPortfolio=trackedReturnSeries(netSeries,portfolioId,start);
@@ -332,6 +340,7 @@
         note.textContent=parts.join(' ');
       }
     }catch(err){
+      if(seq!==benchmarkSequence||currentPortfolioId!==portfolioId||displayCurrency!==currency||performancePeriod!==period)return;
       console.error('Performance benchmark failed',err);
       if(chart)chart.innerHTML='<div class="empty">Could not load benchmark history. Portfolio data is unaffected.</div>';
       const legend=document.getElementById('benchmarkLegend');if(legend)legend.innerHTML='';
@@ -507,7 +516,7 @@
     const w=760,h=265,padX=18,padY=22;
     const x=date=>{const t=new Date(`${date}T00:00:00`).getTime();return padX+(w-padX*2)*((t-minT)/Math.max(1,maxT-minT));};
     const y=v=>padY+(h-padY*2)*(1-(v-minV)/(maxV-minV));
-    const colors=['#d9b5e8','#59c3c3','#f4c95d'];
+    const colors=['#ff9b45','#5ea9f6','#60c8c4'];
     const paths=lines.map((line,i)=>{
       const pts=line.points.map(p=>`${x(p.date).toFixed(1)},${y(p.value).toFixed(1)}`).join(' ');
       return pts?`<polyline points="${pts}" fill="none" stroke="${colors[i]}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>`:'';
@@ -535,14 +544,14 @@
   async function renderLive(){
     if(busy||!performanceActive()||!currentPortfolioId)return;
     busy=true;
-    const portfolioId=currentPortfolioId;
+    const portfolioId=currentPortfolioId,currency=displayCurrency,period=activePeriod();
     const chart=document.getElementById('benchmarkChart');
     const note=document.getElementById('benchmarkNote');
     try{
-      const period=activePeriod();
       const start=periodStart(portfolioId,period);
+      if(portfolioHistoryCoverage(portfolioId,period).missingOpeningHistory)return;
       if(typeof refreshStockPrices==='function')await refreshStockPrices({force:true,silent:true});
-      if(currentPortfolioId!==portfolioId||!performanceActive())return;
+      if(currentPortfolioId!==portfolioId||displayCurrency!==currency||activePeriod()!==period||!performanceActive())return;
       if(window.PortfolioYtdAnchor?.renderPortfolio(portfolioId,period,{force:true}))return;
       const [portfolioData,bench]=await Promise.all([
         (async()=>{
@@ -551,7 +560,7 @@
         })(),
         fetchBench(start)
       ]);
-      if(currentPortfolioId!==portfolioId||!performanceActive())return;
+      if(currentPortfolioId!==portfolioId||displayCurrency!==currency||activePeriod()!==period||!performanceActive())return;
 
       const portfolioRaw=portfolioIndex(portfolioData,portfolioId,start);
       const vooRaw=adjustedPoints(bench.history.VOO,bench.quotes.VOO);
