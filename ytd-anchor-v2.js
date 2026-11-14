@@ -140,6 +140,7 @@
     const errors=[];
     const linkedCount=records.filter(r=>r.profile?.method===LINKED).length;
     const automaticCount=records.filter(r=>r.profile?.automaticFlowsAfter!=null).length;
+    const rawAppNav=records.reduce((sum,r)=>sum+number(r.endNav),0);
     records=records.map(r=>{
       const linked=r.profile?.method===LINKED;
       if(!linked&&r.profile?.automaticFlowsAfter==null)return r;
@@ -174,7 +175,8 @@
     const profile={version:1,method:METHOD,currency:records[0].profile.currency,openingAsOf:`${Number(year)-1}-12-31`,
       openingNav:records.reduce((s,r)=>s+number(r.profile.openingNav),0),externalFlows:external,
       flowsCompleteThrough:records.map(r=>r.profile.flowsCompleteThrough).sort()[0]};
-    return {...calculate(profile,year,asOf,records.reduce((s,r)=>s+number(r.endNav),0)),internalTransferPairs:pairs.size,linkedCount,automaticCount};
+    const endNav=records.reduce((s,r)=>s+number(r.endNav),0);
+    return {...calculate(profile,year,asOf,endNav),internalTransferPairs:pairs.size,linkedCount,automaticCount,rawAppNav,navAdjustment:endNav-rawAppNav};
   }
   const api={validate,calculate,aggregate,linkedInputs,automaticInputs};
   root.PortfolioYtdAnchor=api;
@@ -233,8 +235,10 @@
   function snapshotHtml(r){
     if(!r?.ok)return `<div class="ytd-snapshot"><strong>YTD anchor needs attention</strong><div class="ytd-error">${escape(r?.errors?.join('\n')||'NAV unavailable.')}</div><p class="ytd-explanation">The recorded transaction calculation is unchanged. An enabled but incomplete anchor is not replaced with a tracked-period estimate.</p></div>`;
     const linked=r.method===LINKED;
-    const rows=[['Opening NAV · '+r.openingAsOf,fmt(r.openingNav,r.currency)],[(linked?'Performance NAV · ':r.navSource==='snapshot'?'Brokerage NAV snapshot · ':'Current NAV · ')+r.asOf,fmt(r.endNav,r.currency)],
+    const aligned=linked||Math.abs(r.navAdjustment||0)>0.005;
+    const rows=[['Opening NAV · '+r.openingAsOf,fmt(r.openingNav,r.currency)],[(aligned?'Performance NAV · ':r.navSource==='snapshot'?'Brokerage NAV snapshot · ':'Current NAV · ')+r.asOf,fmt(r.endNav,r.currency)],
       ['External contributions',fmt(r.deposits,r.currency)],['External withdrawals',fmt(r.withdrawals,r.currency)],['YTD investment P/L',signMoney(r.profit,r.currency)]];
+    if(aligned&&!linked)rows.splice(1,0,['NAV before performance alignment',fmt(r.rawAppNav,r.currency)],['Saved performance alignment',signMoney(r.navAdjustment,r.currency)]);
     if(linked)rows.push(['Brokerage YTD anchor · '+r.anchorDate,percent(r.anchorReturnPct)],['Return since anchor · estimate',percent(r.periodReturnPct)],['NAV alignment · performance only',signMoney(r.navAdjustment,r.currency)]);
     const explanation=linked?`${r.returnUnavailable||'Brokerage YTD is compounded with a Modified Dietz estimate since the anchor. This is an app estimate, not an exact brokerage TWR.'} ${r.autoFlowCount} later deposit/withdrawal records included automatically. ${r.foreignFlows?'Foreign-currency flows use current saved/live FX. ':''}Prices, recorded trades and later flows update the estimate without new statements.`:
       `${r.returnUnavailable||'Modified Dietz return: investment P/L divided by opening NAV plus day-weighted external flows. Not annualized; not exact TWR.'} No daily history is drawn from missing trades. ${r.automaticFlowsAfter?`Historical flows reviewed through ${r.automaticFlowsAfter}; ${r.autoFlowCount} later deposit/withdrawal records included automatically.${r.foreignFlows?' Foreign-currency flows use current saved/live FX.':''}`:`Flow list reviewed through ${r.reviewedThrough}.${r.staleFlows?' Add any later external flows before relying on this result.':''}`}`;
@@ -298,7 +302,7 @@
     if(label)label.textContent=selected.length===active.length?'All portfolios · Anchored YTD':'Enabled portfolios only · Anchored YTD';
     if(sub)sub.textContent=`${selected.length}/${active.length} active portfolios · ${r.currency||'one common currency required'} · Modified Dietz estimate`;
     if(chart)chart.innerHTML=snapshotHtml(r);
-    if(note)note.textContent=`Included: ${selected.map(a=>a.name).join(', ')}. ${r.linkedCount||r.automaticCount?'Group return is a whole-year Modified Dietz estimate from combined NAV and flows; individual portfolio percentages are not averaged. Later flows from automatic profiles are read from their transactions. ':methodNote(r)+' '}Internal transfers are removed only when both enabled portfolios have matching dated transfer entries. Portfolios without a profile are excluded from this anchored subtotal; their own calculations remain unchanged.`;
+    if(note)note.textContent=`Included: ${selected.map(a=>a.name).join(', ')}. ${r.linkedCount||r.automaticCount?'Group return is a whole-year Modified Dietz estimate from combined NAV and flows; individual portfolio percentages are not averaged. Later flows from automatic profiles are read from their transactions. ':methodNote(r)+' '}Saved performance alignment affects Performance NAV only; Value keeps the existing accounting NAV. Internal transfers are removed only when both enabled portfolios have matching dated transfer entries. Portfolios without a profile are excluded from this anchored subtotal; their own calculations remain unchanged.`;
     return true;
   }
   api.renderPortfolio=renderPortfolio;api.renderOverall=renderOverall;
