@@ -33,7 +33,7 @@ test('missing or invalid previous close clears an old comparison instead of show
   const s=setup({price:94,previousClose,priceDate:'2026-11-13'});
   await s.context.window.refreshStockPrices({force:true});
   assert.equal(s.asset.price,94);assert.equal(s.asset.previousClose,null);
-  assert.equal(s.asset.previousCloseUpdatedAt,null);assert.equal(s.asset.previousCloseDate,null);
+  assert.equal(s.asset.previousCloseUpdatedAt,null);assert.equal(s.asset.previousCloseDate,undefined);
  }
 });
 

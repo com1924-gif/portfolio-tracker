@@ -44,9 +44,11 @@ async function refreshStockPrices({force=false,silent=false}={}){
           asset.previousClose=null;
           asset.previousCloseUpdatedAt=null;
         }
-        asset.quoteDate=q.priceDate||null;
-        asset.previousCloseDate=asset.previousClose?q.previousCloseDate||null:null;
-        asset.quoteSession=q.session||null;
+        for(const [key,value] of Object.entries({quoteDate:q.priceDate,
+          previousCloseDate:asset.previousClose?q.previousCloseDate:null,quoteSession:q.session})){
+          if(value)asset[key]=value;
+          else delete asset[key];
+        }
         asset.quoteSymbol=yahoo;
         asset.quoteUpdatedAt=new Date().toISOString();
         asset.quoteSource='Yahoo Finance / yfinance';
