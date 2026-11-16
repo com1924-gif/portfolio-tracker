@@ -85,7 +85,11 @@
   }
   function layout(){
     const home=document.getElementById('homeView'),card=home?.querySelector('.summary-card'),chart=document.getElementById('overallReturnPanel');
-    if(card&&chart&&card.nextElementSibling!==chart)card.after(chart);
+    const allocation=document.getElementById('homeAllocationList')?.closest('.panel');
+    if(card&&allocation&&card.nextElementSibling!==allocation)card.after(allocation);
+    if(allocation&&chart&&allocation.nextElementSibling!==chart)allocation.after(chart);
+    const portfolioAllocation=document.getElementById('portfolioAllocationList')?.closest('.panel'),history=document.getElementById('portfolioHistoryPanel');
+    if(portfolioAllocation&&history&&portfolioAllocation.nextElementSibling!==history)portfolioAllocation.after(history);
     const metrics=document.getElementById('performanceMetrics'),benchmark=document.getElementById('benchmarkChart')?.closest('.panel');
     if(metrics&&benchmark&&metrics.previousElementSibling!==benchmark)metrics.before(benchmark);
     disclosure(document.getElementById('overallReturnNote'),'About this calculation');
