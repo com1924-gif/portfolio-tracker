@@ -30,32 +30,57 @@ class handler(BaseHTTPRequestHandler):
     @staticmethod
     def _session_quote(symbol):
         ticker = yf.Ticker(symbol)
-        # Pair both values from the same regular-session series. fast_info's
-        # previous_close can use extended-hours bars and is not the prior close.
-        hist = ticker.history(period="5d", interval="1d", auto_adjust=False, prepost=False)
+        # Yahoo can publish a regular-market quote while its latest daily Close
+        # is still null. Retain that row and prefer the dated regular quote;
+        # fast_info.previous_close can include extended-hours trading.
+        hist = ticker.history(period="5d", interval="1d", auto_adjust=False, prepost=False, keepna=True)
         closes = {}
+        session_dates = []
         if not hist.empty:
             for idx, row in hist.iterrows():
+                date = idx.strftime("%Y-%m-%d")
+                session_dates.append(date)
                 close = row.get("Close")
                 if close is not None and math.isfinite(float(close)) and float(close) > 0:
-                    closes[idx.strftime("%Y-%m-%d")] = float(close)
+                    closes[date] = float(close)
         points = sorted(closes.items())
-        if not points:
-            raise ValueError("Regular-session price unavailable")
-        date, price = points[-1]
-        previous_date, previous_close = points[-2] if len(points) > 1 else (None, None)
         try:
-            currency = ticker.get_history_metadata().get("currency")
+            meta = ticker.get_history_metadata() or {}
         except Exception:
-            currency = None
+            meta = {}
+        regular = None
+        try:
+            value = float(meta["regularMarketPrice"])
+            stamp = float(meta["regularMarketTime"])
+            if math.isfinite(value) and value > 0 and math.isfinite(stamp) and stamp > 0:
+                when = datetime.fromtimestamp(stamp, ZoneInfo(meta["exchangeTimezoneName"]))
+                regular = (when.strftime("%Y-%m-%d"), value, stamp)
+        except (KeyError, TypeError, ValueError, OverflowError):
+            pass
+        if regular and (not points or regular[0] >= points[-1][0]):
+            date, price, stamp = regular
+            price_time = datetime.fromtimestamp(stamp, ZoneInfo("UTC")).isoformat().replace("+00:00", "Z")
+            source_kind = "regular-market"
+        elif points:
+            date, price = points[-1]
+            price_time = None
+            source_kind = "daily-history"
+        else:
+            raise ValueError("Regular-session price unavailable")
+        previous = [p for p in points if p[0] < date]
+        previous_date, previous_close = previous[-1] if previous else (None, None)
+        latest_session = max([date] + session_dates)
         return {
             "symbol": symbol,
             "price": price,
             "previousClose": previous_close,
             "priceDate": date,
+            "priceTime": price_time,
             "previousCloseDate": previous_date,
+            "latestSessionDate": latest_session,
+            "quoteStatus": "stale" if date < latest_session else source_kind,
             "session": "regular",
-            "currency": currency,
+            "currency": meta.get("currency"),
             "source": "Yahoo Finance / yfinance",
         }
 

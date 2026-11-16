@@ -170,12 +170,15 @@
 
   function updateQuoteStatus(){
     const el=document.getElementById('overallReturnUpdated');if(!el)return;
-    const open=summaryFor().hs||[],times=open.filter(a=>a.type==='stock').map(a=>Date.parse(a.quoteUpdatedAt||'')).filter(Number.isFinite);
-    const missing=open.filter(a=>a.type==='stock'&&!a.quoteUpdatedAt).length;
+    const open=summaryFor().hs||[],stocks=open.filter(a=>a.type==='stock');
+    const times=stocks.map(a=>Date.parse(a.quoteUpdatedAt||'')).filter(Number.isFinite);
+    const dates=[...new Set(stocks.map(a=>a.quoteDate).filter(Boolean))].sort();
+    const missing=stocks.filter(a=>!a.quoteDate).length;
     const options=open.filter(a=>a.type==='option').length;
     const oldest=times.length?Math.min(...times):null;
-    const when=oldest==null?'Saved stock prices':`Stocks checked ${new Date(oldest).toLocaleTimeString('en-HK',{hour:'2-digit',minute:'2-digit'})}`;
-    el.textContent=when+(missing?` · ${missing} without quote time`:'')+(options?' · options use saved marks':'');
+    const sessions=dates.length?`Stock sessions ${dates[0]}${dates.length>1?' – '+dates.at(-1):''}`:'Saved stock prices';
+    const when=oldest==null?'':` · fetched ${new Date(oldest).toLocaleTimeString('en-HK',{hour:'2-digit',minute:'2-digit'})}`;
+    el.textContent=sessions+when+(missing?` · ${missing} market dates unavailable`:'')+(options?' · options use saved marks':'');
   }
 
   function applyPrivacy(){window.PortfolioNetAssetPrivacy?.apply();}

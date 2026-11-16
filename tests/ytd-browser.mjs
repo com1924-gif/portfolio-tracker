@@ -383,6 +383,21 @@ try{
  assert.equal(await allState(histPage),localBeforeExport,'cloud export changed local state');assert.equal(JSON.stringify(docs.get(histKey)),documentBeforeExport,'read-only export wrote the cloud document');
  assert.equal(JSON.stringify(docs.get(keyB)),untouchedB,'private history leaked to another user');
  console.log('PASS: reviewed private history import, wrong-basis rejection, Jan1 NAV/YTD curves, funding markers, prior-anchor estimate, source labels, current NAV/YTD equality, accounting preservation, encrypted cloud isolation and read-only cloud export.');
+ const quotePage=await makePage('new',{mobile:true});
+ const ledgerBefore=await quotePage.evaluate(()=>JSON.stringify({accounts:state.accounts,transactions:state.transactions,fx:state.fx}));
+ await quotePage.route('**/portfolio-tracker-quotes.vercel.app/?symbols=*',async route=>route.fulfill({json:{quotes:{
+  AAA:{price:9.4,previousClose:10,priceDate:'2026-11-13',previousCloseDate:'2026-11-12',priceTime:'2026-11-13T09:00:00Z',session:'regular',quoteStatus:'regular-market'},
+  BBB:{price:6,previousClose:5,priceDate:'2026-11-13',previousCloseDate:'2026-11-12',session:'regular',quoteStatus:'regular-market'}
+ }}}));
+ await quotePage.locator('#refreshPricesBtn').click();
+ await quotePage.waitForFunction(()=>state.assets.find(a=>a.symbol==='AAA').price===9.4);
+ await quotePage.locator('#homeAllocationList .home-allocation-row').filter({hasText:'AAA'}).click();
+ assert.equal(await quotePage.locator('#homeAllocationDetail .home-holding-change').textContent(),'Day -6.00%');
+ assert.match(await quotePage.locator('.home-holding-quote-date').textContent(),/As of 2026-11-13/);
+ assert.equal(await quotePage.evaluate(()=>JSON.stringify({accounts:state.accounts,transactions:state.transactions,fx:state.fx})),ledgerBefore,'quote refresh changed the financial ledger');
+ assert.ok(await quotePage.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'dated quote mobile overflow');
+ await quotePage.screenshot({path:path.join(output,'dated-quote-mobile.png'),fullPage:true});
+ console.log('PASS: paired quote refresh, visible market date, negative day return, ledger preservation and mobile layout.');
  assert.deepEqual(errors,[],'browser runtime errors');
  console.log('PASS: no browser runtime errors.');
 }catch(error){
