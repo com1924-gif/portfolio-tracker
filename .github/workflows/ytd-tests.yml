@@ -37,7 +37,13 @@ jobs:
           node --check summary-design-v2.js
           node --check chart-inspector-v2.js
           node --check privacy-toggle-v2.js
+          node --check prices-v2.js
+          node --check home-v225.js
           node --check tests/ytd-browser.mjs
+      - name: Quote session regression
+        run: |
+          python3 -m unittest discover -s tests -p 'test_quotes.py'
+          node --test tests/prices.test.cjs
       - name: Calculation, state and encryption tests
         run: node --test tests/ytd-anchor.test.cjs tests/overview-model.test.cjs tests/chart-inspector.test.cjs tests/performance-history.test.cjs
       - name: Install pinned browser test dependency
