@@ -39,6 +39,15 @@ async function refreshStockPrices({force=false,silent=false}={}){
         if(Number.isFinite(Number(q.previousClose)) && Number(q.previousClose)>0){
           asset.previousClose=Number(q.previousClose);
           asset.previousCloseUpdatedAt=new Date().toISOString();
+        }else{
+          // A new price must never inherit a comparison price from an old quote.
+          asset.previousClose=null;
+          asset.previousCloseUpdatedAt=null;
+        }
+        for(const [key,value] of Object.entries({quoteDate:q.priceDate,
+          previousCloseDate:asset.previousClose?q.previousCloseDate:null,quoteSession:q.session})){
+          if(value)asset[key]=value;
+          else delete asset[key];
         }
         asset.quoteSymbol=yahoo;
         asset.quoteUpdatedAt=new Date().toISOString();
@@ -75,3 +84,4 @@ function installPriceRefreshButtons(){
 
 installPriceRefreshButtons();
 setTimeout(()=>refreshStockPrices({silent:true}),300);
+

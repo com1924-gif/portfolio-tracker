@@ -1,4 +1,5 @@
 import json
+import math
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 from datetime import datetime, timedelta
@@ -25,6 +26,38 @@ class handler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.end_headers()
+
+    @staticmethod
+    def _session_quote(symbol):
+        ticker = yf.Ticker(symbol)
+        # Pair both values from the same regular-session series. fast_info's
+        # previous_close can use extended-hours bars and is not the prior close.
+        hist = ticker.history(period="5d", interval="1d", auto_adjust=False, prepost=False)
+        closes = {}
+        if not hist.empty:
+            for idx, row in hist.iterrows():
+                close = row.get("Close")
+                if close is not None and math.isfinite(float(close)) and float(close) > 0:
+                    closes[idx.strftime("%Y-%m-%d")] = float(close)
+        points = sorted(closes.items())
+        if not points:
+            raise ValueError("Regular-session price unavailable")
+        date, price = points[-1]
+        previous_date, previous_close = points[-2] if len(points) > 1 else (None, None)
+        try:
+            currency = ticker.get_history_metadata().get("currency")
+        except Exception:
+            currency = None
+        return {
+            "symbol": symbol,
+            "price": price,
+            "previousClose": previous_close,
+            "priceDate": date,
+            "previousCloseDate": previous_date,
+            "session": "regular",
+            "currency": currency,
+            "source": "Yahoo Finance / yfinance",
+        }
 
     @staticmethod
     def _last_price(symbol):
@@ -190,27 +223,11 @@ class handler(BaseHTTPRequestHandler):
             result = {}
             for symbol in symbols:
                 try:
-                    ticker = yf.Ticker(symbol)
-                    fi = ticker.fast_info
-                    price = getattr(fi, "last_price", None)
-                    previous_close = getattr(fi, "previous_close", None)
-                    currency = getattr(fi, "currency", None)
-
-                    if price is None:
-                        hist = ticker.history(period="5d", interval="1d", auto_adjust=False)
-                        if not hist.empty:
-                            price = float(hist["Close"].dropna().iloc[-1])
-
-                    result[symbol] = {
-                        "symbol": symbol,
-                        "price": float(price) if price is not None else None,
-                        "previousClose": float(previous_close) if previous_close is not None else None,
-                        "currency": currency,
-                        "source": "Yahoo Finance / yfinance",
-                    }
+                    result[symbol] = self._session_quote(symbol)
                 except Exception as exc:
                     result[symbol] = {"symbol": symbol, "price": None, "error": str(exc)}
 
             return self._send_json(200, {"quotes": result})
         except Exception as exc:
             return self._send_json(500, {"error": str(exc)})
+

@@ -268,7 +268,7 @@
             <div class="home-holding-name">${esc(group.name||group.symbol)}</div>
             <div class="home-holding-symbol">${esc(group.symbol)}</div>
           </div>
-          <div class="home-holding-change ${dayClass}">${signedPctOrDash(group.todayPct)}</div>
+          <div class="home-holding-change ${dayClass}">Day ${signedPctOrDash(group.todayPct)}</div>
         </div>
         <div class="home-holding-price">${money(group.price,group.currency)}</div>
       </div>
@@ -282,7 +282,7 @@
           <strong class="home-holding-detail-value">${Number(group.qty).toLocaleString('en-HK',{maximumFractionDigits:4})}</strong>
         </div>
         <div class="home-holding-detail-cell">
-          <span class="home-holding-detail-label">Today P/L</span>
+          <span class="home-holding-detail-label">Session P/L</span>
           <strong class="home-holding-detail-value ${group.todayPct==null?'':detailClass(group.todayPLDisplay)}">${group.todayPct==null?'—':signedMoney(group.todayPLDisplay)}</strong>
           <span class="home-holding-detail-sub">${signedPctOrDash(group.todayPct)}</span>
         </div>
@@ -631,3 +631,4 @@
   document.getElementById('homeCurrency')?.addEventListener('change',()=>setTimeout(applyCashAllocation,0));
   setTimeout(applyCashAllocation,0);
 })();
+
