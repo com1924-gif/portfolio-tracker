@@ -24,8 +24,9 @@ class History:
 
 
 class Ticker:
-    def __init__(self, rows):
+    def __init__(self, rows, metadata=None):
         self.rows = rows
+        self.metadata = metadata or {"currency": "USD"}
         self.history_args = None
 
     @property
@@ -37,16 +38,16 @@ class Ticker:
         return History(self.rows)
 
     def get_history_metadata(self):
-        return {"currency": "USD"}
+        return self.metadata
 
 
 class SessionQuoteTests(unittest.TestCase):
-    def quote(self, rows):
-        ticker = Ticker(rows)
+    def quote(self, rows, metadata=None):
+        ticker = Ticker(rows, metadata)
         with patch.object(yf, "Ticker", return_value=ticker, create=True):
             result = quotes.handler._session_quote("AAA")
         self.assertEqual(ticker.history_args, {
-            "period": "5d", "interval": "1d", "auto_adjust": False, "prepost": False,
+            "period": "5d", "interval": "1d", "auto_adjust": False, "prepost": False, "keepna": True,
         })
         return result
 
@@ -70,6 +71,37 @@ class SessionQuoteTests(unittest.TestCase):
     def test_unavailable_history_does_not_fall_back_to_mismatched_fast_info(self):
         with self.assertRaisesRegex(ValueError, "unavailable"):
             self.quote([])
+
+    def test_latest_null_daily_close_uses_dated_regular_quote_and_prior_session(self):
+        # Seoul has crossed midnight, but the quote belongs to Monday's session.
+        stamp = datetime.fromisoformat("2026-11-16T06:30:00+00:00").timestamp()
+        q = self.quote([("2026-11-13", 100), ("2026-11-16", float("nan"))], {
+            "currency": "KRW", "regularMarketPrice": 92, "regularMarketTime": stamp,
+            "exchangeTimezoneName": "Asia/Seoul", "chartPreviousClose": 999,
+        })
+        self.assertEqual((q["price"], q["previousClose"]), (92, 100))
+        self.assertEqual((q["priceDate"], q["previousCloseDate"]), ("2026-11-16", "2026-11-13"))
+        self.assertEqual(q["quoteStatus"], "regular-market")
+
+    def test_intraday_metadata_overrides_same_day_bar_and_never_compares_with_itself(self):
+        stamp = datetime.fromisoformat("2026-11-16T16:00:00+00:00").timestamp()
+        q = self.quote([("2026-11-13", 100), ("2026-11-16", 96)], {
+            "regularMarketPrice": 94, "regularMarketTime": stamp,
+            "exchangeTimezoneName": "America/New_York", "postMarketPrice": 85,
+        })
+        self.assertEqual((q["price"], q["previousClose"]), (94, 100))
+
+    def test_old_metadata_does_not_regress_a_newer_daily_bar(self):
+        stamp = datetime.fromisoformat("2026-11-13T06:30:00+00:00").timestamp()
+        q = self.quote([("2026-11-13", 100), ("2026-11-16", 92)], {
+            "regularMarketPrice": 100, "regularMarketTime": stamp, "exchangeTimezoneName": "Asia/Seoul",
+        })
+        self.assertEqual((q["price"], q["previousClose"]), (92, 100))
+
+    def test_null_latest_bar_without_a_usable_quote_is_marked_stale(self):
+        q = self.quote([("2026-11-13", 100), ("2026-11-16", float("nan"))])
+        self.assertEqual(q["quoteStatus"], "stale")
+        self.assertEqual(q["latestSessionDate"], "2026-11-16")
 
 
 if __name__ == "__main__":

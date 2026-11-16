@@ -123,6 +123,8 @@
     .home-holding-name{font-size:15px;font-weight:800;line-height:1.3;overflow-wrap:anywhere}
     .home-holding-symbol{font-size:11px;color:var(--muted);margin-top:4px}
     .home-holding-price{font-size:15px;font-weight:800;margin-top:13px}
+    .home-holding-quote-date{font-size:11px;color:var(--muted);margin-top:5px;font-weight:400;line-height:1.4}
+    .home-holding-quote-date.stale{color:#f4c95d}
     .home-holding-change{flex:0 0 auto;min-width:64px;text-align:center;border-radius:10px;padding:9px 7px;font-size:13px;font-weight:900;background:#25252a;color:var(--muted)}
     .home-holding-change.positive{background:rgba(98,209,139,.92);color:#fff!important}
     .home-holding-change.negative{background:rgba(255,93,87,.95);color:#fff!important}
@@ -166,7 +168,7 @@
           key,type:h.type,symbol:h.symbol,name:h.name||h.symbol,currency:h.currency,
           qty:0,costDisplay:0,marketValueDisplay:0,unrealizedDisplay:0,realizedDisplay:0,totalPLDisplay:0,totalBuyCostDisplay:0,
           priceNumerator:0,previousCloseNumerator:0,previousCloseUnits:0,units:0,todayPLDisplay:0,previousValueDisplay:0,
-          assetIds:new Set(),accountIds:new Set(),multiplier:multiplier(h)
+          assetIds:new Set(),accountIds:new Set(),quoteDates:new Set(),quoteStale:false,multiplier:multiplier(h)
         };
         map.set(key,row);
       }
@@ -184,6 +186,8 @@
       row.totalBuyCostDisplay+=convert(Number.isFinite(Number(h.totalBuyCost))?Number(h.totalBuyCost):(Number(h.cost)||0),h.currency);
       row.assetIds.add(h.id);
       row.accountIds.add(h.accountId);
+      if(h.quoteDate)row.quoteDates.add(h.quoteDate);
+      if(!h.quoteDate||h.quoteStatus==='stale')row.quoteStale=true;
       const prev=Number(h.previousClose);
       if(h.type==='stock'&&Number.isFinite(prev)&&prev>0){
         row.previousCloseNumerator+=units*prev;
@@ -260,6 +264,9 @@
     const quantityLabel=group.type==='option'?'Contracts':'Shares';
     const avgCostNative=group.units?group.costDisplay/group.units:0;
     const accounts=group.accountNames.length?group.accountNames.join(' · '):'—';
+    const quoteDates=[...group.quoteDates].sort();
+    const quoteLabel=quoteDates.length===1?`As of ${quoteDates[0]} · regular session`:
+      quoteDates.length>1?`Mixed quote dates: ${quoteDates[0]} – ${quoteDates.at(-1)}`:'Saved price · market date unavailable';
 
     detail.innerHTML=`
       <div class="home-holding-hero">
@@ -271,6 +278,7 @@
           <div class="home-holding-change ${dayClass}">Day ${signedPctOrDash(group.todayPct)}</div>
         </div>
         <div class="home-holding-price">${money(group.price,group.currency)}</div>
+        ${group.type==='stock'?`<div class="home-holding-quote-date ${group.quoteStale?'stale':''}">${esc(quoteLabel)}${group.quoteStale&&quoteDates.length?' · newer quote unavailable':''}</div>`:''}
       </div>
       <div class="home-holding-detail-grid">
         <div class="home-holding-detail-cell">
