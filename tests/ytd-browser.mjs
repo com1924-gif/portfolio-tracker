@@ -411,6 +411,8 @@ try{
  assert.match(await cell('Realized P/L').textContent(),/Includes closed positions.*Example Portfolio B/);
  assert.equal(await cell('Total Tracked P/L').locator('strong').textContent(),'+HK$109.20');
  assert.equal(await cell('Shares').locator('strong').textContent(),'10');
+ // The existing native-currency decorator runs on the next task after a click.
+ await closedPage.waitForFunction(()=>[...document.querySelectorAll('#homeAllocationDetail .home-holding-detail-cell')].find(el=>el.querySelector('.home-holding-detail-label')?.textContent==='Average Cost')?.querySelector('strong')?.textContent==='US$10.10');
  assert.equal(await cell('Average Cost').locator('strong').textContent(),'US$10.10');
  assert.equal(await closedPage.locator('#homeAllocationList .home-allocation-row').filter({hasText:'AAA'}).count(),1);
  await closedPage.evaluate(()=>openPortfolio('two'));await closedPage.locator('[data-tab="holdings"]').click();
