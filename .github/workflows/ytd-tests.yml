@@ -45,7 +45,7 @@ jobs:
           python3 -m unittest discover -s tests -p 'test_quotes.py'
           node --test tests/prices.test.cjs
       - name: Calculation, state and encryption tests
-        run: node --test tests/ytd-anchor.test.cjs tests/overview-model.test.cjs tests/chart-inspector.test.cjs tests/performance-history.test.cjs
+        run: node --test tests/ytd-anchor.test.cjs tests/overview-model.test.cjs tests/chart-inspector.test.cjs tests/performance-history.test.cjs tests/holding-pnl.test.cjs
       - name: Install pinned browser test dependency
         run: npm install --no-save --package-lock=false playwright@1.62.1
       - name: Install Chromium
