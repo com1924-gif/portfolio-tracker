@@ -168,7 +168,7 @@
           key,type:h.type,symbol:h.symbol,name:h.name||h.symbol,currency:h.currency,
           qty:0,costDisplay:0,marketValueDisplay:0,unrealizedDisplay:0,realizedDisplay:0,totalPLDisplay:0,totalBuyCostDisplay:0,
           priceNumerator:0,previousCloseNumerator:0,previousCloseUnits:0,units:0,todayPLDisplay:0,previousValueDisplay:0,
-          assetIds:new Set(),accountIds:new Set(),quoteDates:new Set(),quoteStale:false,multiplier:multiplier(h)
+          assetIds:new Set(),accountIds:new Set(),closedAccountIds:new Set(),quoteDates:new Set(),quoteStale:false,multiplier:multiplier(h)
         };
         map.set(key,row);
       }
@@ -199,6 +199,19 @@
       }
     });
 
+    // Allocation and cost use open holdings. Tracked P/L also includes the same
+    // instrument after it has been fully sold in another portfolio.
+    const closed=typeof closedPositionsFor==='function'?closedPositionsFor():[];
+    closed.forEach(h=>{
+      const row=map.get(keyFor(h));
+      if(!row||row.assetIds.has(h.id))return;
+      row.realizedDisplay+=convert(Number(h.realized)||0,h.currency);
+      row.totalPLDisplay+=convert(Number(h.realized)||0,h.currency);
+      row.totalBuyCostDisplay+=convert(Number(h.totalBuyCost)||0,h.currency);
+      row.assetIds.add(h.id);
+      row.closedAccountIds.add(h.accountId);
+    });
+
     const totalMarket=[...map.values()].reduce((sum,r)=>sum+Math.max(0,r.marketValueDisplay),0);
     return [...map.values()].map(r=>{
       r.price=r.units?r.priceNumerator/r.units:0;
@@ -213,6 +226,7 @@
         return sum+convert(amount,t.currency||r.currency);
       },0);
       r.accountNames=[...r.accountIds].map(id=>state.accounts.find(a=>a.id===id)?.name).filter(Boolean);
+      r.closedAccountNames=[...r.closedAccountIds].map(id=>state.accounts.find(a=>a.id===id)?.name).filter(Boolean);
       return r;
     }).sort((a,b)=>b.marketValueDisplay-a.marketValueDisplay);
   }
@@ -312,6 +326,7 @@
         <div class="home-holding-detail-cell">
           <span class="home-holding-detail-label">Realized P/L</span>
           <strong class="home-holding-detail-value ${detailClass(group.realizedDisplay)}">${signedMoney(group.realizedDisplay)}</strong>
+          ${group.closedAccountIds.size?`<span class="home-holding-detail-sub">Includes closed positions${group.closedAccountNames.length?' · '+esc(group.closedAccountNames.join(' · ')):''}</span>`:''}
         </div>
         <div class="home-holding-detail-cell right">
           <span class="home-holding-detail-label">Average Cost</span>

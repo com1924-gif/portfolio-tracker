@@ -398,6 +398,32 @@ try{
  assert.ok(await quotePage.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'dated quote mobile overflow');
  await quotePage.screenshot({path:path.join(output,'dated-quote-mobile.png'),fullPage:true});
  console.log('PASS: paired quote refresh, visible market date, negative day return, ledger preservation and mobile layout.');
+ const closedFixture=structuredClone(fixture);
+ closedFixture.assets.push({id:'closed_a',accountId:'two',type:'stock',symbol:'AAA',name:'Example A',currency:'USD',price:99,multiplier:1});
+ closedFixture.transactions.push(
+  {id:'cb',accountId:'two',assetId:'closed_a',type:'Buy',currency:'USD',qty:1,price:15,fee:1,date:'2026-01-12'},
+  {id:'cs',accountId:'two',assetId:'closed_a',type:'Sell',currency:'USD',qty:1,price:12,fee:1,date:'2026-02-12'});
+ const closedPage=await makePage('new',{mobile:true,initialState:closedFixture});
+ const closedBefore=await accounting(closedPage),closedStateBefore=await allState(closedPage);
+ await closedPage.locator('#homeAllocationList .home-allocation-row').filter({hasText:'AAA'}).click();
+ const cell=label=>closedPage.locator('#homeAllocationDetail .home-holding-detail-cell').filter({has:closedPage.getByText(label,{exact:true})});
+ assert.equal(await cell('Realized P/L').locator('strong').textContent(),'-HK$39.00');
+ assert.match(await cell('Realized P/L').textContent(),/Includes closed positions.*Example Portfolio B/);
+ assert.equal(await cell('Total Tracked P/L').locator('strong').textContent(),'+HK$109.20');
+ assert.equal(await cell('Shares').locator('strong').textContent(),'10');
+ // The existing native-currency decorator runs on the next task after a click.
+ await closedPage.waitForFunction(()=>[...document.querySelectorAll('#homeAllocationDetail .home-holding-detail-cell')].find(el=>el.querySelector('.home-holding-detail-label')?.textContent==='Average Cost')?.querySelector('strong')?.textContent==='US$10.10');
+ assert.equal(await cell('Average Cost').locator('strong').textContent(),'US$10.10');
+ assert.equal(await closedPage.locator('#homeAllocationList .home-allocation-row').filter({hasText:'AAA'}).count(),1);
+ await closedPage.evaluate(()=>openPortfolio('two'));await closedPage.locator('[data-tab="holdings"]').click();
+ await closedPage.getByRole('button',{name:'Closed',exact:true}).click();
+ assert.match(await closedPage.locator('#portfolioClosedPositions').textContent(),/-US\$5.00/);
+ await closedPage.evaluate(()=>goHome());
+ assert.equal(await accounting(closedPage),closedBefore,'closed P/L display changed accounting');
+ assert.equal(await allState(closedPage),closedStateBefore,'closed P/L display wrote private data');
+ assert.ok(await closedPage.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'closed P/L note mobile overflow');
+ await closedPage.screenshot({path:path.join(output,'closed-account-pnl-mobile.png'),fullPage:true});
+ console.log('PASS: closed-account loss appears in overview, open average cost and shares remain intact, Closed agrees, and no private state changed.');
  assert.deepEqual(errors,[],'browser runtime errors');
  console.log('PASS: no browser runtime errors.');
 }catch(error){
