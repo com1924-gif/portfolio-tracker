@@ -180,6 +180,7 @@ function drawHistoryChart(series){
     el.innerHTML='<div class="empty">Not enough history yet.</div>';
     if(latest) latest.textContent=series.length?money(series[0].value):'';
     if(range) range.textContent='';
+    window.PortfolioNetAssetPrivacy?.apply();
     return;
   }
   const values=series.map(p=>Number(p.value)||0);
@@ -204,7 +205,8 @@ function drawHistoryChart(series){
   </svg>`;
   window.PortfolioChartInspector?.attach({element:el,series,kind:'nav',currency:displayCurrency,portfolioId:currentPortfolioId,accountIds:[currentPortfolioId],start:periodStart(currentPortfolioId,historyPeriod),end:isoDate(new Date()),x,y,width:w,height:h,left:padX,right:w-padX,top:padY,bottom:h-padY});
   if(latest) latest.innerHTML=`<strong>${money(endVal)}</strong><span>${signedMoney(chg)} (${pct(chgPct)})<small>NAV change · includes funding</small></span>`;
-  if(range) range.innerHTML=`<span>${shortDate(series[0].date)}</span><span>${money(actualMin)} – ${money(actualMax)}</span><span>${shortDate(series[series.length-1].date)}</span>`;
+  if(range) range.innerHTML=`<span>${shortDate(series[0].date)}</span><span data-private-nav-range>${money(actualMin)} – ${money(actualMax)}</span><span>${shortDate(series[series.length-1].date)}</span>`;
+  window.PortfolioNetAssetPrivacy?.apply();
 }
 
 async function renderPerformanceChart({force=false}={}){
@@ -217,6 +219,7 @@ async function renderPerformanceChart({force=false}={}){
   const latest=document.getElementById('historyLatest'),range=document.getElementById('historyRange');
   if(latest)latest.textContent=money(summaryFor(portfolioId).net);
   if(range)range.textContent='';
+  window.PortfolioNetAssetPrivacy?.apply();
   if(note)note.textContent='Loading recorded history…';
   if(el) el.innerHTML='<div class="history-loading">Loading history…</div>';
   try{
@@ -246,7 +249,7 @@ window.renderPerformanceChart=renderPerformanceChart;
 
 ensureHistoryPanel();
 const originalOpenPortfolio=window.openPortfolio;
-window.openPortfolio=id=>{historyRenderSequence++;originalOpenPortfolio(id);document.getElementById('historyLatest').textContent=money(summaryFor(id).net);document.getElementById('historyRange').textContent='';document.getElementById('historyChart').innerHTML='<div class="history-loading">Loading history…</div>';setTimeout(()=>renderPerformanceChart(),0);};
+window.openPortfolio=id=>{historyRenderSequence++;originalOpenPortfolio(id);document.getElementById('historyLatest').textContent=money(summaryFor(id).net);document.getElementById('historyRange').textContent='';document.getElementById('historyChart').innerHTML='<div class="history-loading">Loading history…</div>';window.PortfolioNetAssetPrivacy?.apply();setTimeout(()=>renderPerformanceChart(),0);};
 const originalRenderAll=renderAll;
 renderAll=function(){originalRenderAll();if(currentPortfolioId)setTimeout(()=>renderPerformanceChart(),0);};
 ['homeCurrency','portfolioCurrency'].forEach(id=>document.getElementById(id)?.addEventListener('change',()=>{if(currentPortfolioId)renderPerformanceChart();}));

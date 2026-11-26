@@ -20,8 +20,8 @@
   `;
   document.head.appendChild(style);
 
-  function ensureButton(){
-    const amount=document.getElementById('homeNetAssets');
+  function ensureButton(amountId,buttonId){
+    const amount=document.getElementById(amountId);
     if(!amount)return null;
     const label=amount.previousElementSibling;
     if(!label)return null;
@@ -34,10 +34,11 @@
       row.appendChild(label);
     }
 
-    let btn=document.getElementById('homeNetAssetPrivacyBtn');
+    let btn=document.getElementById(buttonId);
     if(!btn){
       btn=document.createElement('button');
-      btn.id='homeNetAssetPrivacyBtn';
+      btn.id=buttonId;
+      btn.setAttribute('aria-controls',amountId);
       btn.type='button';
       btn.className='net-asset-privacy-btn';
       row.appendChild(btn);
@@ -52,27 +53,30 @@
 
   function applyPrivacy(){
     const amount=document.getElementById('homeNetAssets');
-    const btn=ensureButton();
-    if(!amount||!btn)return;
+    const portfolioAmount=document.getElementById('portfolioNetAssets');
+    const controls=[
+      {btn:ensureButton('homeNetAssets','homeNetAssetPrivacyBtn'),label:'Total Net Assets'},
+      {btn:ensureButton('portfolioNetAssets','portfolioNetAssetPrivacyBtn'),label:'Net Assets'}
+    ];
+    const latest=document.getElementById('historyLatest');
+    const historyAmount=latest?.querySelector('strong')||latest;
 
     const valueHero=document.getElementById('overallReturnPanel')?.dataset.mode==='value'?document.getElementById('overallReturnHero'):null;
-    for(const el of [amount,valueHero,...document.querySelectorAll('#overallReturnChart [data-inspector-nav],#overallReturnChart [data-inspector-nav-label]')].filter(Boolean)){
+    for(const el of [amount,portfolioAmount,valueHero,historyAmount,...document.querySelectorAll('[data-inspector-nav],[data-inspector-nav-label],[data-private-nav-range]')].filter(Boolean)){
       if(el.textContent!=='******')el.dataset.visibleValue=el.textContent;
       if(hidden)el.textContent='******';
       else if(el.textContent==='******'&&el.dataset.visibleValue)el.textContent=el.dataset.visibleValue;
       el.classList.toggle('net-assets-hidden',hidden);
     }
     if(!valueHero)document.getElementById('overallReturnHero')?.classList.remove('net-assets-hidden');
-    if(hidden){
-      btn.innerHTML=eyeClosed;
-      btn.setAttribute('aria-label','Show Total Net Assets');
-      btn.title='Show Total Net Assets';
-    }else{
-      btn.innerHTML=eyeOpen;
-      btn.setAttribute('aria-label','Hide Total Net Assets');
-      btn.title='Hide Total Net Assets';
+    for(const {btn,label} of controls){
+      if(!btn)continue;
+      btn.innerHTML=hidden?eyeClosed:eyeOpen;
+      const action=(hidden?'Show ':'Hide ')+label;
+      btn.setAttribute('aria-label',action);
+      btn.title=action;
+      btn.setAttribute('aria-pressed',hidden?'true':'false');
     }
-    btn.setAttribute('aria-pressed',hidden?'true':'false');
   }
   window.PortfolioNetAssetPrivacy={apply:applyPrivacy,isHidden:()=>hidden};
 
@@ -82,6 +86,14 @@
       originalRenderHome();
       const amount=document.getElementById('homeNetAssets');
       if(amount&&!amount.classList.contains('net-assets-hidden'))amount.dataset.visibleValue=amount.textContent;
+      applyPrivacy();
+    };
+  }
+
+  const originalRenderPortfolio=window.renderPortfolio;
+  if(typeof originalRenderPortfolio==='function'){
+    window.renderPortfolio=renderPortfolio=function(){
+      originalRenderPortfolio();
       applyPrivacy();
     };
   }
